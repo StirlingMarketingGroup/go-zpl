@@ -48,6 +48,7 @@ function saveState() {
             width: document.getElementById('width').value,
             height: document.getElementById('height').value,
             unit: document.getElementById('unit').value,
+            ignoreLabelHome: document.getElementById('ignore-label-home').checked,
             zpl: editor ? editor.getValue() : defaultZPL,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -226,7 +227,8 @@ function render() {
     const startTime = performance.now();
 
     try {
-        const result = window.renderZPL(zpl, dpi, dims.width, dims.height);
+        const ignoreLabelHome = document.getElementById('ignore-label-home').checked;
+        const result = window.renderZPL(zpl, dpi, dims.width, dims.height, ignoreLabelHome);
         const elapsed = (performance.now() - startTime).toFixed(1);
 
         if (result.error) {
@@ -255,10 +257,13 @@ function initControls() {
     const widthEl = document.getElementById('width');
     const heightEl = document.getElementById('height');
     const unitEl = document.getElementById('unit');
+    const ignoreLabelHomeEl = document.getElementById('ignore-label-home');
 
     if (saved) {
         dpiEl.value = saved.dpi || DEFAULT_DPI;
         unitEl.value = saved.unit || 'in';
+        // Default to true (checked) if not saved
+        ignoreLabelHomeEl.checked = saved.ignoreLabelHome !== false;
 
         // Set values based on saved unit
         const dpi = parseInt(dpiEl.value, 10);
@@ -284,6 +289,7 @@ function initControls() {
         heightEl.value = DEFAULT_HEIGHT_INCHES;
         widthEl.dataset.dots = DEFAULT_WIDTH_INCHES * DEFAULT_DPI;
         heightEl.dataset.dots = DEFAULT_HEIGHT_INCHES * DEFAULT_DPI;
+        ignoreLabelHomeEl.checked = true; // Default to ignoring label home offsets
     }
 
     updateDimensionDisplays();
@@ -334,6 +340,11 @@ document.getElementById('height').addEventListener('input', () => {
         render();
         saveState();
     }, 300);
+});
+
+document.getElementById('ignore-label-home').addEventListener('change', () => {
+    render();
+    saveState();
 });
 
 // Drag and drop handling

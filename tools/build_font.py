@@ -13,11 +13,13 @@ GLYPH_DIR = "testdata/scans/glyphs"
 OUTPUT_TTF = "render/zebra_font0.ttf"
 
 # From trim_glyphs.go output:
-# Cap line: 35, Baseline: 210, Descender: 274
-# Standard height: 239 pixels (descender - cap = 274 - 35)
-# Baseline is at y=175 in output frame (baseline - cap = 210 - 35)
-GLYPH_HEIGHT = 239  # pixels in source SVGs
-BASELINE_Y = 175    # pixels from top in source SVGs (where baseline sits)
+# Cap line: 0, Baseline: 195, Descender: 238
+# Standard height: 238 pixels
+# Baseline is at y=195 in output frame
+GLYPH_HEIGHT = 238  # pixels in source SVGs
+# Reduced from 195 to 190 to shift text up slightly within bounding box
+# This gives ~1-2px more visual spacing between lines
+BASELINE_Y = 190    # pixels from top in source SVGs (where baseline sits)
 
 # Font metrics (standard em-square)
 EM_SIZE = 1000

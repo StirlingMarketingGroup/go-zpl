@@ -26,6 +26,11 @@ type Renderer struct {
 
 	// Height is the label height in dots. If zero, uses the label's configured height.
 	Height int
+
+	// IgnoreLabelHome controls whether ^LH (label home) offsets are applied.
+	// When false (default), offsets are applied exactly as a printer would.
+	// When true, offsets are ignored for cleaner previews.
+	IgnoreLabelHome bool
 }
 
 // New creates a new Renderer with the given DPI.
@@ -38,6 +43,14 @@ func New(dpi zpl.DPI) *Renderer {
 func (r *Renderer) WithSize(width, height int) *Renderer {
 	r.Width = width
 	r.Height = height
+	return r
+}
+
+// WithIgnoreLabelHome sets whether to ignore ^LH label home offsets.
+// When false (default), offsets are applied exactly as a printer would.
+// When true, offsets are ignored for cleaner previews.
+func (r *Renderer) WithIgnoreLabelHome(ignore bool) *Renderer {
+	r.IgnoreLabelHome = ignore
 	return r
 }
 
@@ -66,10 +79,13 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 		return nil, err
 	}
 
-	// Apply label home offset
-	homeX, homeY := label.Home()
-	canvas.homeX = homeX
-	canvas.homeY = homeY
+	// Apply label home offset (^LH) unless ignored
+	// By default, offsets are applied (IgnoreLabelHome = false)
+	if !r.IgnoreLabelHome {
+		homeX, homeY := label.Home()
+		canvas.homeX = homeX
+		canvas.homeY = homeY
+	}
 
 	// Process all commands
 	for _, cmd := range label.Commands() {

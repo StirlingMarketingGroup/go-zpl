@@ -15,14 +15,15 @@ import (
 )
 
 var (
-	dpi       = flag.Int("dpi", 203, "Printer DPI (203, 300, or 600)")
-	width     = flag.Int("width", 0, "Label width in dots (0 = auto from ZPL)")
-	height    = flag.Int("height", 0, "Label height in dots (0 = auto from ZPL)")
-	format    = flag.String("format", "png", "Output format: png or jpeg")
-	quality   = flag.Int("quality", 90, "JPEG quality (1-100)")
-	output    = flag.String("o", "", "Output file (default: input.png or stdout if input is stdin)")
-	showHelp  = flag.Bool("help", false, "Show help")
-	showHelpH = flag.Bool("h", false, "Show help")
+	dpi            = flag.Int("dpi", 203, "Printer DPI (203, 300, or 600)")
+	width          = flag.Int("width", 0, "Label width in dots (0 = auto from ZPL)")
+	height         = flag.Int("height", 0, "Label height in dots (0 = auto from ZPL)")
+	format         = flag.String("format", "png", "Output format: png or jpeg")
+	quality        = flag.Int("quality", 90, "JPEG quality (1-100)")
+	output         = flag.String("o", "", "Output file (default: input.png or stdout if input is stdin)")
+	applyLabelHome = flag.Bool("apply-label-home", false, "Apply label home offsets (^LH) - default ignores for cleaner previews")
+	showHelp       = flag.Bool("help", false, "Show help")
+	showHelpH      = flag.Bool("h", false, "Show help")
 )
 
 func usage() {
@@ -38,14 +39,16 @@ Options:
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, `
 Examples:
-  zplrender label.zpl                    # Creates label.png
-  zplrender -dpi 300 label.zpl           # Render at 300 DPI
-  zplrender -format jpeg label.zpl       # Output as JPEG
-  zplrender -o output.png label.zpl      # Specify output filename
-  zplrender -width 812 -height 1218 -    # Read from stdin with explicit size
-  cat label.zpl | zplrender -o out.png   # Pipe input
+  zplrender label.zpl                     # Creates label.png
+  zplrender -dpi 300 label.zpl            # Render at 300 DPI
+  zplrender -format jpeg label.zpl        # Output as JPEG
+  zplrender -o output.png label.zpl       # Specify output filename
+  zplrender -width 812 -height 1218 -     # Read from stdin with explicit size
+  cat label.zpl | zplrender -o out.png    # Pipe input
+  zplrender -apply-label-home label.zpl   # Include ^LH label home offsets
 
 Supported DPI values: 203 (default), 300, 600
+Note: By default, label home offsets (^LH) are ignored for cleaner previews.
 `)
 }
 
@@ -152,8 +155,8 @@ func processDataToFile(data []byte, outputFile string, dpiVal zpl.DPI) (err erro
 		}
 	}
 
-	// Create renderer
-	renderer := render.New(dpiVal).WithSize(w, h)
+	// Create renderer (ignore margins by default for cleaner previews)
+	renderer := render.New(dpiVal).WithSize(w, h).WithIgnoreLabelHome(!*applyLabelHome)
 
 	// Create output file
 	f, err := os.Create(outputFile) //nolint:gosec // User-provided filename is intended
@@ -202,8 +205,8 @@ func processDataToStdout(data []byte, dpiVal zpl.DPI) error {
 		}
 	}
 
-	// Create renderer
-	renderer := render.New(dpiVal).WithSize(w, h)
+	// Create renderer (ignore margins by default for cleaner previews)
+	renderer := render.New(dpiVal).WithSize(w, h).WithIgnoreLabelHome(!*applyLabelHome)
 
 	// Render to stdout
 	if *format == "jpeg" {

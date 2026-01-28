@@ -28,12 +28,18 @@ func renderZPL(this js.Value, args []js.Value) interface{} {
 	width := args[2].Int()
 	height := args[3].Int()
 
+	// Optional 5th argument: ignoreLabelHome (default true)
+	ignoreLabelHome := true
+	if len(args) >= 5 && !args[4].IsUndefined() && !args[4].IsNull() {
+		ignoreLabelHome = args[4].Bool()
+	}
+
 	label, err := zpl.Parse(zplData)
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
 
-	renderer := render.New(dpi).WithSize(width, height)
+	renderer := render.New(dpi).WithSize(width, height).WithIgnoreLabelHome(ignoreLabelHome)
 	img, err := renderer.Render(label)
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}

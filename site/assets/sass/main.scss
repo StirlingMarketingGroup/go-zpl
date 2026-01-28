@@ -76,6 +76,16 @@ header {
         width: 80px;
     }
 
+    .checkbox-label {
+        cursor: pointer;
+        user-select: none;
+
+        input[type='checkbox'] {
+            cursor: pointer;
+            width: auto;
+        }
+    }
+
     #render-time {
         font-size: 0.75rem;
         color: #888;

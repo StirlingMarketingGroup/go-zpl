@@ -21,14 +21,13 @@ const (
 	Font0 Font = '0' // 15x12 matrix (default)
 
 	// Additional fonts
-	FontGS Font = 'S' // Symbol font
-	FontP  Font = 'P' // Standard font
-	FontQ  Font = 'Q' // Standard font
-	FontR  Font = 'R' // Standard font
-	FontS  Font = 'S' // Standard font
-	FontT  Font = 'T' // Standard font
-	FontU  Font = 'U' // Standard font
-	FontV  Font = 'V' // Standard font
+	FontP Font = 'P' // Standard font
+	FontQ Font = 'Q' // Standard font
+	FontR Font = 'R' // Standard font
+	FontS Font = 'S' // Standard font (also used as symbol font)
+	FontT Font = 'T' // Standard font
+	FontU Font = 'U' // Standard font
+	FontV Font = 'V' // Standard font
 )
 
 // ScalableFont represents a ^A command for selecting a font.
@@ -100,20 +99,20 @@ type CharacterSet struct {
 
 // Common character sets.
 const (
-	CharSetUSA          = 0  // USA1
-	CharSetUSA2         = 1  // USA2
-	CharSetUK           = 2  // UK
-	CharSetDutch        = 3  // Holland
-	CharSetDanish       = 4  // Denmark
-	CharSetSwedish      = 5  // Sweden
-	CharSetGerman       = 6  // Germany
-	CharSetFrench       = 7  // France1
-	CharSetFrench2      = 8  // France2
-	CharSetItalian      = 9  // Italy
-	CharSetSpanish      = 10 // Spain
-	CharSetJIS          = 12 // Japanese
-	CharSetUTF8         = 28 // UTF-8
-	CharSetUTF16BigEndian = 29 // UTF-16 Big Endian
+	CharSetUSA               = 0  // USA1
+	CharSetUSA2              = 1  // USA2
+	CharSetUK                = 2  // UK
+	CharSetDutch             = 3  // Holland
+	CharSetDanish            = 4  // Denmark
+	CharSetSwedish           = 5  // Sweden
+	CharSetGerman            = 6  // Germany
+	CharSetFrench            = 7  // France1
+	CharSetFrench2           = 8  // France2
+	CharSetItalian           = 9  // Italy
+	CharSetSpanish           = 10 // Spain
+	CharSetJIS               = 12 // Japanese
+	CharSetUTF8              = 28 // UTF-8
+	CharSetUTF16BigEndian    = 29 // UTF-16 Big Endian
 	CharSetUTF16LittleEndian = 30 // UTF-16 Little Endian
 )
 

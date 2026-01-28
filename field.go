@@ -7,7 +7,7 @@ import (
 
 // FieldOrigin represents a ^FO command for positioning fields.
 type FieldOrigin struct {
-	X, Y         int
+	X, Y          int
 	Justification Justification // Z = use default
 }
 
@@ -109,11 +109,11 @@ func (f *FieldReverse) WriteTo(w io.Writer) (int64, error) {
 
 // FieldBlock represents a ^FB command for text block formatting.
 type FieldBlock struct {
-	Width            int
-	MaxLines         int
-	LineSpacing      int
-	Justification    Justification
-	HangingIndent    int
+	Width         int
+	MaxLines      int
+	LineSpacing   int
+	Justification Justification
+	HangingIndent int
 }
 
 // NewFieldBlock creates a new field block command.

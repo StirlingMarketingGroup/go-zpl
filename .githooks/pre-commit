@@ -38,7 +38,7 @@ echo "✓ go vet passed"
 # Run golangci-lint if available
 if command -v golangci-lint &> /dev/null; then
     echo "Running golangci-lint..."
-    if ! golangci-lint run --fast; then
+    if ! golangci-lint run; then
         echo "❌ golangci-lint failed"
         exit 1
     fi

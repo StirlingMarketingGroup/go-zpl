@@ -92,15 +92,15 @@ func TestCharacterSet(t *testing.T) {
 
 func TestFontConstants(t *testing.T) {
 	fonts := map[Font]rune{
-		FontA:  'A',
-		FontB:  'B',
-		FontC:  'C',
-		FontD:  'D',
-		FontE:  'E',
-		FontF:  'F',
-		FontG:  'G',
-		FontH:  'H',
-		Font0:  '0',
+		FontA: 'A',
+		FontB: 'B',
+		FontC: 'C',
+		FontD: 'D',
+		FontE: 'E',
+		FontF: 'F',
+		FontG: 'G',
+		FontH: 'H',
+		Font0: '0',
 	}
 
 	for font, expected := range fonts {

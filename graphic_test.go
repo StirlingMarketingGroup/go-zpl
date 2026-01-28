@@ -6,9 +6,9 @@ import (
 
 func TestGraphicBox(t *testing.T) {
 	tests := []struct {
-		name      string
-		box       *GraphicBox
-		wantZPL   string
+		name    string
+		box     *GraphicBox
+		wantZPL string
 	}{
 		{
 			name:    "basic box",
@@ -38,9 +38,9 @@ func TestGraphicBox(t *testing.T) {
 
 func TestGraphicCircle(t *testing.T) {
 	tests := []struct {
-		name      string
-		circle    *GraphicCircle
-		wantZPL   string
+		name    string
+		circle  *GraphicCircle
+		wantZPL string
 	}{
 		{
 			name:    "basic circle",
@@ -131,12 +131,12 @@ func TestGraphicSymbol(t *testing.T) {
 		{
 			name:    "registered trademark",
 			symbol:  NewGraphicSymbol(SymbolRegisteredTrademark, 50, 50),
-			wantZPL: "^GSN,50,50^FDA",
+			wantZPL: "^GSN,50,50^FDA^FS",
 		},
 		{
 			name:    "copyright rotated",
 			symbol:  NewGraphicSymbol(SymbolCopyright, 30, 30).WithOrientation(OrientationRotated90),
-			wantZPL: "^GSR,30,30^FDB",
+			wantZPL: "^GSR,30,30^FDB^FS",
 		},
 	}
 

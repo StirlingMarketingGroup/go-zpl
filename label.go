@@ -9,6 +9,8 @@ import (
 
 // Label represents a ZPL label with all its commands.
 // It implements fmt.Stringer, io.WriterTo, and encoding.TextMarshaler.
+//
+// A Label is not safe for concurrent use.
 type Label struct {
 	commands []Command
 
@@ -90,13 +92,23 @@ func (l *Label) SetPrintQuantity(quantity, pauseAndCut, replicates int, override
 }
 
 // Add appends a command to the label.
+// Panics if cmd is nil.
 func (l *Label) Add(cmd Command) *Label {
+	if cmd == nil {
+		panic("zpl: cannot add nil command to label")
+	}
 	l.commands = append(l.commands, cmd)
 	return l
 }
 
 // AddAll appends multiple commands to the label.
+// Panics if any command is nil.
 func (l *Label) AddAll(cmds ...Command) *Label {
+	for i, cmd := range cmds {
+		if cmd == nil {
+			panic(fmt.Sprintf("zpl: cannot add nil command at index %d to label", i))
+		}
+	}
 	l.commands = append(l.commands, cmds...)
 	return l
 }
@@ -200,7 +212,7 @@ func (l *Label) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	// Print quantity (^PQ)
-	if l.printQuantity > 1 || l.pauseAndCut > 0 || l.replicates > 0 {
+	if l.printQuantity > 1 || l.pauseAndCut > 0 || l.replicates > 0 || l.overridePause {
 		override := 'N'
 		if l.overridePause {
 			override = 'Y'

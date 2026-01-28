@@ -81,13 +81,23 @@ func (g *GraphicCircle) WriteTo(w io.Writer) (int64, error) {
 	return int64(n), err
 }
 
+// DiagonalOrientation represents the lean direction of a diagonal line.
+type DiagonalOrientation rune
+
+const (
+	// DiagonalRightLeaning draws from upper-left to lower-right.
+	DiagonalRightLeaning DiagonalOrientation = 'R'
+	// DiagonalLeftLeaning draws from lower-left to upper-right.
+	DiagonalLeftLeaning DiagonalOrientation = 'L'
+)
+
 // GraphicDiagonalLine represents a ^GD command for drawing diagonal lines.
 type GraphicDiagonalLine struct {
 	Width       int
 	Height      int
 	Thickness   int
 	Color       LineColor
-	Orientation Orientation // R = right-leaning, L = left-leaning
+	Orientation DiagonalOrientation
 }
 
 // NewGraphicDiagonalLine creates a new graphic diagonal line command.
@@ -97,7 +107,7 @@ func NewGraphicDiagonalLine(width, height, thickness int) *GraphicDiagonalLine {
 		Height:      height,
 		Thickness:   thickness,
 		Color:       LineColorBlack,
-		Orientation: OrientationRotated90, // R = right-leaning (default)
+		Orientation: DiagonalRightLeaning,
 	}
 }
 
@@ -109,13 +119,13 @@ func (g *GraphicDiagonalLine) WithColor(color LineColor) *GraphicDiagonalLine {
 
 // WithLeftLeaning sets the diagonal to lean left.
 func (g *GraphicDiagonalLine) WithLeftLeaning() *GraphicDiagonalLine {
-	g.Orientation = 'L'
+	g.Orientation = DiagonalLeftLeaning
 	return g
 }
 
 // WithRightLeaning sets the diagonal to lean right.
 func (g *GraphicDiagonalLine) WithRightLeaning() *GraphicDiagonalLine {
-	g.Orientation = 'R'
+	g.Orientation = DiagonalRightLeaning
 	return g
 }
 
@@ -200,7 +210,7 @@ func (g *GraphicSymbol) WithOrientation(o Orientation) *GraphicSymbol {
 
 // ZPL returns the ZPL representation.
 func (g *GraphicSymbol) ZPL() string {
-	return fmt.Sprintf("^GS%c,%d,%d^FD%c", g.Orientation, g.Height, g.Width, g.Symbol)
+	return fmt.Sprintf("^GS%c,%d,%d^FD%c^FS", g.Orientation, g.Height, g.Width, g.Symbol)
 }
 
 // WriteTo writes the ZPL to the writer.

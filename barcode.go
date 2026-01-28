@@ -7,9 +7,9 @@ import (
 
 // BarcodeDefault represents a ^BY command for barcode field defaults.
 type BarcodeDefault struct {
-	ModuleWidth int // Width of narrow bar in dots (1-10)
+	ModuleWidth       int     // Width of narrow bar in dots (1-10)
 	WideToNarrowRatio float64 // Ratio of wide to narrow bars (2.0-3.0)
-	Height int // Barcode height in dots
+	Height            int     // Barcode height in dots
 }
 
 // NewBarcodeDefault creates a new barcode default command.
@@ -35,9 +35,10 @@ func (b *BarcodeDefault) WriteTo(w io.Writer) (int64, error) {
 // Code128Mode represents the Code 128 subset mode.
 type Code128Mode rune
 
+// Code 128 modes.
 const (
-	Code128Auto   Code128Mode = 'N' // Auto mode (printer selects best subset)
-	Code128UCC    Code128Mode = 'U' // UCC/EAN-128 mode
+	Code128Auto    Code128Mode = 'N' // Auto mode (printer selects best subset)
+	Code128UCC     Code128Mode = 'U' // UCC/EAN-128 mode
 	Code128SubsetA Code128Mode = 'A' // Subset A
 	Code128SubsetB Code128Mode = 'B' // Subset B (default for auto)
 	Code128SubsetC Code128Mode = 'C' // Subset C (numeric pairs)
@@ -75,8 +76,8 @@ func (b *BarcodeCode128) WithOrientation(o Orientation) *BarcodeCode128 {
 }
 
 // WithInterpretation sets whether to print human-readable text.
-func (b *BarcodeCode128) WithInterpretation(print, above bool) *BarcodeCode128 {
-	b.PrintInterpretation = print
+func (b *BarcodeCode128) WithInterpretation(printText, above bool) *BarcodeCode128 {
+	b.PrintInterpretation = printText
 	b.InterpretationAbove = above
 	return b
 }
@@ -152,8 +153,8 @@ func (b *BarcodeCode39) WithCheckDigit(enabled bool) *BarcodeCode39 {
 }
 
 // WithInterpretation sets whether to print human-readable text.
-func (b *BarcodeCode39) WithInterpretation(print, above bool) *BarcodeCode39 {
-	b.PrintInterpretation = print
+func (b *BarcodeCode39) WithInterpretation(printText, above bool) *BarcodeCode39 {
+	b.PrintInterpretation = printText
 	b.InterpretationAbove = above
 	return b
 }
@@ -185,14 +186,16 @@ func (b *BarcodeCode39) WriteTo(w io.Writer) (int64, error) {
 // QRCodeModel represents the QR code model.
 type QRCodeModel int
 
+// QR code models.
 const (
-	QRCodeModel1  QRCodeModel = 1
-	QRCodeModel2  QRCodeModel = 2 // Recommended
+	QRCodeModel1 QRCodeModel = 1
+	QRCodeModel2 QRCodeModel = 2 // Recommended
 )
 
 // QRCodeErrorCorrection represents the error correction level.
 type QRCodeErrorCorrection rune
 
+// QR code error correction levels.
 const (
 	QRCodeECHigh     QRCodeErrorCorrection = 'H' // ~30% recovery
 	QRCodeECQuartile QRCodeErrorCorrection = 'Q' // ~25% recovery
@@ -202,12 +205,12 @@ const (
 
 // BarcodeQR represents a ^BQ command for QR codes.
 type BarcodeQR struct {
-	Orientation     Orientation
-	Model           QRCodeModel
+	Orientation         Orientation
+	Model               QRCodeModel
 	MagnificationFactor int // 1-10
-	ErrorCorrection QRCodeErrorCorrection
-	MaskValue       int // 0-7, typically 7 (auto)
-	Data            string
+	ErrorCorrection     QRCodeErrorCorrection
+	MaskValue           int // 0-7, typically 7 (auto)
+	Data                string
 }
 
 // NewBarcodeQR creates a new QR code command.
@@ -256,15 +259,15 @@ func (b *BarcodeQR) WriteTo(w io.Writer) (int64, error) {
 
 // BarcodeDataMatrix represents a ^BX command for DataMatrix barcodes.
 type BarcodeDataMatrix struct {
-	Orientation   Orientation
-	Height        int // Module size (height of individual cells)
-	QualityLevel  int // 0, 50, 80, 100, 140, 200
-	Columns       int // Number of columns (even, 10-144)
-	Rows          int // Number of rows (even, 10-144)
-	FormatID      int // Format identifier
-	EscapeChar    rune
-	AspectRatio   int // 1 = square, 2 = rectangular
-	Data          string
+	Orientation  Orientation
+	Height       int // Module size (height of individual cells)
+	QualityLevel int // 0, 50, 80, 100, 140, 200
+	Columns      int // Number of columns (even, 10-144)
+	Rows         int // Number of rows (even, 10-144)
+	FormatID     int // Format identifier
+	EscapeChar   rune
+	AspectRatio  int // 1 = square, 2 = rectangular
+	Data         string
 }
 
 // NewBarcodeDataMatrix creates a new DataMatrix barcode command.
@@ -322,13 +325,13 @@ func (b *BarcodeDataMatrix) WriteTo(w io.Writer) (int64, error) {
 
 // BarcodePDF417 represents a ^B7 command for PDF417 barcodes.
 type BarcodePDF417 struct {
-	Orientation         Orientation
-	Height              int
-	SecurityLevel       int  // 0-8
-	DataColumns         int  // 1-30
-	Rows                int  // 3-90
-	Truncate            bool // Truncated PDF417
-	Data                string
+	Orientation   Orientation
+	Height        int
+	SecurityLevel int  // 0-8
+	DataColumns   int  // 1-30
+	Rows          int  // 3-90
+	Truncate      bool // Truncated PDF417
+	Data          string
 }
 
 // NewBarcodePDF417 creates a new PDF417 barcode command.
@@ -417,8 +420,8 @@ func (b *BarcodeEAN13) WithOrientation(o Orientation) *BarcodeEAN13 {
 }
 
 // WithInterpretation sets whether to print human-readable text.
-func (b *BarcodeEAN13) WithInterpretation(print, above bool) *BarcodeEAN13 {
-	b.PrintInterpretation = print
+func (b *BarcodeEAN13) WithInterpretation(printText, above bool) *BarcodeEAN13 {
+	b.PrintInterpretation = printText
 	b.InterpretationAbove = above
 	return b
 }
@@ -472,8 +475,8 @@ func (b *BarcodeUPCA) WithOrientation(o Orientation) *BarcodeUPCA {
 }
 
 // WithInterpretation sets whether to print human-readable text.
-func (b *BarcodeUPCA) WithInterpretation(print, above bool) *BarcodeUPCA {
-	b.PrintInterpretation = print
+func (b *BarcodeUPCA) WithInterpretation(printText, above bool) *BarcodeUPCA {
+	b.PrintInterpretation = printText
 	b.InterpretationAbove = above
 	return b
 }
@@ -537,8 +540,8 @@ func (b *BarcodeInterleaved2of5) WithOrientation(o Orientation) *BarcodeInterlea
 }
 
 // WithInterpretation sets whether to print human-readable text.
-func (b *BarcodeInterleaved2of5) WithInterpretation(print, above bool) *BarcodeInterleaved2of5 {
-	b.PrintInterpretation = print
+func (b *BarcodeInterleaved2of5) WithInterpretation(printText, above bool) *BarcodeInterleaved2of5 {
+	b.PrintInterpretation = printText
 	b.InterpretationAbove = above
 	return b
 }

@@ -768,34 +768,63 @@ func (p *parser) parseGraphicField() error {
 	if getParam(params, 0) != "" {
 		format = GraphicFieldFormat(getParam(params, 0)[0])
 	}
-	bytesPerRow := parseInt(getParam(params, 3), 1)
+	dataBytes := parseInt(getParam(params, 1), 0)   // Total bytes in the data
+	bytesPerRow := parseInt(getParam(params, 3), 1) // Bytes per row
 
-	// Remaining data is the hex string (may span multiple lines)
-	data := ""
-	if len(params) > 4 {
-		data = getParam(params, 4)
-	}
+	switch format {
+	case GraphicFieldBinary:
+		// Binary format: read exactly dataBytes of raw binary data
+		if dataBytes <= 0 {
+			return nil
+		}
 
-	// Continue reading hex data until ^FS or next command
-	for p.pos < len(p.input) {
-		if strings.HasPrefix(p.input[p.pos:], "^FS") {
+		// Read the binary data directly
+		binaryData := make([]byte, 0, dataBytes)
+		for p.pos < len(p.input) && len(binaryData) < dataBytes {
+			binaryData = append(binaryData, p.input[p.pos])
+			p.pos++
+		}
+
+		// Skip ^FS if present
+		if p.pos < len(p.input) && strings.HasPrefix(p.input[p.pos:], "^FS") {
 			p.pos += 3
-			break
 		}
-		if p.input[p.pos] == '^' {
-			break
+
+		if len(binaryData) > 0 {
+			gf := NewGraphicFieldBinary(bytesPerRow, binaryData)
+			p.label.Add(gf)
 		}
-		ch := p.input[p.pos]
-		if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f') {
-			data += string(ch)
+
+	case GraphicFieldASCII:
+		// ASCII format: read hex characters
+		// Remaining data is the hex string (may span multiple lines)
+		var data strings.Builder
+		if len(params) > 4 {
+			data.WriteString(getParam(params, 4))
 		}
-		p.pos++
+
+		// Continue reading hex data until ^FS or next command
+		for p.pos < len(p.input) {
+			if strings.HasPrefix(p.input[p.pos:], "^FS") {
+				p.pos += 3
+				break
+			}
+			if p.input[p.pos] == '^' {
+				break
+			}
+			ch := p.input[p.pos]
+			if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f') {
+				data.WriteByte(ch)
+			}
+			p.pos++
+		}
+
+		if data.Len() > 0 {
+			gf := NewGraphicFieldASCII(bytesPerRow, data.String())
+			p.label.Add(gf)
+		}
 	}
 
-	if format == GraphicFieldASCII && data != "" {
-		gf := NewGraphicFieldASCII(bytesPerRow, data)
-		p.label.Add(gf)
-	}
 	return nil
 }
 

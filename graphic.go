@@ -252,8 +252,22 @@ func NewGraphicFieldASCII(bytesPerRow int, data string) *GraphicField {
 	}
 }
 
+// NewGraphicFieldBinary creates a new graphic field with binary data.
+func NewGraphicFieldBinary(bytesPerRow int, data []byte) *GraphicField {
+	return &GraphicField{
+		Format:      GraphicFieldBinary,
+		DataBytes:   len(data),
+		TotalBytes:  len(data),
+		BytesPerRow: bytesPerRow,
+		BinaryData:  data,
+	}
+}
+
 // ZPL returns the ZPL representation.
 func (g *GraphicField) ZPL() string {
+	if g.Format == GraphicFieldBinary {
+		return fmt.Sprintf("^GF%c,%d,%d,%d,%s", g.Format, g.DataBytes, g.TotalBytes, g.BytesPerRow, string(g.BinaryData))
+	}
 	return fmt.Sprintf("^GF%c,%d,%d,%d,%s", g.Format, g.DataBytes, g.TotalBytes, g.BytesPerRow, g.Data)
 }
 

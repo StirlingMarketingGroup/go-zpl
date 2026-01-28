@@ -10,6 +10,7 @@ import (
 	"image/draw"
 	"image/png"
 	"io"
+	"strings"
 	"sync"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
@@ -413,61 +414,82 @@ func (c *canvas) drawEllipse(ellipse *zpl.GraphicEllipse) {
 
 // drawGraphicField renders a bitmap graphic field at the current position.
 func (c *canvas) drawGraphicField(gf *zpl.GraphicField) {
-	if gf.Format != zpl.GraphicFieldASCII {
-		// Only ASCII format is supported for now
-		return
-	}
-
 	x := c.curX
 	y := c.curY
 	bytesPerRow := gf.BytesPerRow
-	data := gf.Data
-
-	// Remove any whitespace/newlines from data
-	cleanData := ""
-	for _, r := range data {
-		if (r >= '0' && r <= '9') || (r >= 'A' && r <= 'F') || (r >= 'a' && r <= 'f') {
-			cleanData += string(r)
-		}
-	}
-
 	col := color.RGBA{0, 0, 0, 255}
 
-	// Each hex character represents 4 pixels
+	// Each byte represents 8 pixels
 	pixelsPerByte := 8
 	rowWidthPixels := bytesPerRow * pixelsPerByte
 
 	row := 0
 	pixelInRow := 0
 
-	for i := 0; i < len(cleanData); i++ {
-		hexChar := cleanData[i]
-		var nibble int
-		switch {
-		case hexChar >= '0' && hexChar <= '9':
-			nibble = int(hexChar - '0')
-		case hexChar >= 'A' && hexChar <= 'F':
-			nibble = int(hexChar-'A') + 10
-		case hexChar >= 'a' && hexChar <= 'f':
-			nibble = int(hexChar-'a') + 10
-		default:
-			continue
-		}
+	switch gf.Format {
+	case zpl.GraphicFieldBinary:
+		// Binary format: each byte directly represents 8 pixels
+		for _, b := range gf.BinaryData {
+			// Each bit is a pixel (MSB first)
+			for bit := 7; bit >= 0; bit-- {
+				if b&(1<<bit) != 0 {
+					px := x + pixelInRow
+					py := y + row
+					if px >= 0 && px < c.img.Bounds().Max.X && py >= 0 && py < c.img.Bounds().Max.Y {
+						c.img.Set(px, py, col)
+					}
+				}
+				pixelInRow++
 
-		// Each nibble is 4 bits = 4 pixels
-		for bit := 3; bit >= 0; bit-- {
-			if nibble&(1<<bit) != 0 {
-				px := x + pixelInRow
-				py := y + row
-				if px >= 0 && px < c.img.Bounds().Max.X && py >= 0 && py < c.img.Bounds().Max.Y {
-					c.img.Set(px, py, col)
+				if pixelInRow >= rowWidthPixels {
+					pixelInRow = 0
+					row++
 				}
 			}
-			pixelInRow++
+		}
 
-			if pixelInRow >= rowWidthPixels {
-				pixelInRow = 0
-				row++
+	case zpl.GraphicFieldASCII:
+		// ASCII format: each hex char represents 4 pixels (1 nibble)
+		data := gf.Data
+
+		// Remove any whitespace/newlines from data
+		var cleanData strings.Builder
+		for _, r := range data {
+			if (r >= '0' && r <= '9') || (r >= 'A' && r <= 'F') || (r >= 'a' && r <= 'f') {
+				cleanData.WriteRune(r)
+			}
+		}
+
+		hexData := cleanData.String()
+		for i := 0; i < len(hexData); i++ {
+			hexChar := hexData[i]
+			var nibble int
+			switch {
+			case hexChar >= '0' && hexChar <= '9':
+				nibble = int(hexChar - '0')
+			case hexChar >= 'A' && hexChar <= 'F':
+				nibble = int(hexChar-'A') + 10
+			case hexChar >= 'a' && hexChar <= 'f':
+				nibble = int(hexChar-'a') + 10
+			default:
+				continue
+			}
+
+			// Each nibble is 4 bits = 4 pixels
+			for bit := 3; bit >= 0; bit-- {
+				if nibble&(1<<bit) != 0 {
+					px := x + pixelInRow
+					py := y + row
+					if px >= 0 && px < c.img.Bounds().Max.X && py >= 0 && py < c.img.Bounds().Max.Y {
+						c.img.Set(px, py, col)
+					}
+				}
+				pixelInRow++
+
+				if pixelInRow >= rowWidthPixels {
+					pixelInRow = 0
+					row++
+				}
 			}
 		}
 	}

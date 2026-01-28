@@ -94,7 +94,7 @@ Comprehensive task list for the go-zpl library.
 
 - [x] `^GF` - Graphic field (bitmap data)
 - [x] ASCII hex encoding
-- [ ] Binary encoding
+- [x] Binary encoding
 - [ ] Compressed binary encoding (Z64, LZ77)
 - [ ] PNG to ZPL conversion
 - [ ] JPEG to ZPL conversion

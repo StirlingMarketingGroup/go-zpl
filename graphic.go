@@ -218,3 +218,47 @@ func (g *GraphicSymbol) WriteTo(w io.Writer) (int64, error) {
 	n, err := io.WriteString(w, g.ZPL())
 	return int64(n), err
 }
+
+// GraphicFieldFormat represents the compression format for ^GF commands.
+type GraphicFieldFormat rune
+
+const (
+	// GraphicFieldASCII is ASCII hexadecimal format (^GFA).
+	GraphicFieldASCII GraphicFieldFormat = 'A'
+	// GraphicFieldBinary is binary format (^GFB).
+	GraphicFieldBinary GraphicFieldFormat = 'B'
+	// GraphicFieldCompressed is compressed binary format (^GFC).
+	GraphicFieldCompressed GraphicFieldFormat = 'C'
+)
+
+// GraphicField represents a ^GF command for embedding bitmap graphics.
+type GraphicField struct {
+	Format      GraphicFieldFormat
+	DataBytes   int    // Total bytes in the data
+	TotalBytes  int    // Total bytes comprising the graphic
+	BytesPerRow int    // Number of bytes per row
+	Data        string // Hex data (for ASCII format)
+	BinaryData  []byte // Binary data (for binary format)
+}
+
+// NewGraphicFieldASCII creates a new graphic field with ASCII hex data.
+func NewGraphicFieldASCII(bytesPerRow int, data string) *GraphicField {
+	return &GraphicField{
+		Format:      GraphicFieldASCII,
+		DataBytes:   len(data) / 2, // 2 hex chars per byte
+		TotalBytes:  len(data) / 2,
+		BytesPerRow: bytesPerRow,
+		Data:        data,
+	}
+}
+
+// ZPL returns the ZPL representation.
+func (g *GraphicField) ZPL() string {
+	return fmt.Sprintf("^GF%c,%d,%d,%d,%s", g.Format, g.DataBytes, g.TotalBytes, g.BytesPerRow, g.Data)
+}
+
+// WriteTo writes the ZPL to the writer.
+func (g *GraphicField) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, g.ZPL())
+	return int64(n), err
+}

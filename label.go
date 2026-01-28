@@ -128,6 +128,16 @@ func (l *Label) DPISetting() DPI {
 	return l.dpi
 }
 
+// PrintOrientationSetting returns the configured print orientation.
+func (l *Label) PrintOrientationSetting() PrintOrientation {
+	return l.printOrientation
+}
+
+// Home returns the label home offset in dots (^LH).
+func (l *Label) Home() (x, y int) {
+	return l.homeX, l.homeY
+}
+
 // Commands returns a copy of the label's commands.
 func (l *Label) Commands() []Command {
 	result := make([]Command, len(l.commands))

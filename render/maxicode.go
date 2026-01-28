@@ -14,6 +14,10 @@ import (
 // - 30 rows, 33 columns of hexagonal modules
 // - Center finder pattern (bullseye)
 
+// upsPrimaryPadding is the 15-character padding UPS uses in their ZPL
+// for the primary message encoding in Mode 2/3 MaxiCodes.
+const upsPrimaryPadding = "000000000000000"
+
 // drawMaxiCode renders a MaxiCode 2D barcode at the current position.
 func (c *canvas) drawMaxiCode(mc *zpl.BarcodeMaxiCode) {
 	if mc.Data == "" {
@@ -28,15 +32,14 @@ func (c *canvas) drawMaxiCode(mc *zpl.BarcodeMaxiCode) {
 		// Fall back to mode 4 (standard symbol) which accepts any data
 		grid, err = maxicode.Encode(4, 0, mc.Data)
 		if err != nil {
-			// Still failing - try stripping the leading padding that UPS ZPL often has
-			// UPS ZPL often has 15 leading zeros before the actual message
+			// Still failing - try stripping the UPS primary message padding
 			data := mc.Data
-			if len(data) > 15 && data[:15] == "000000000000000" {
-				data = data[15:]
+			if len(data) > len(upsPrimaryPadding) && data[:len(upsPrimaryPadding)] == upsPrimaryPadding {
+				data = data[len(upsPrimaryPadding):]
 			}
 			grid, err = maxicode.Encode(4, 0, data)
 			if err != nil {
-				// If encoding still fails, silently skip
+				// If encoding still fails, silently skip (data may be malformed)
 				return
 			}
 		}

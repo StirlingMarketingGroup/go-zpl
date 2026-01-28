@@ -429,8 +429,8 @@ func (p *parser) parseMaxiCode() error {
 			}
 			continue
 		case "FD", "FV":
-			// Read the field data
-			rawData := ""
+			// Read the field data using strings.Builder for efficiency
+			var rawData strings.Builder
 			for p.pos < len(p.input) {
 				if strings.HasPrefix(p.input[p.pos:], "^FS") {
 					p.pos += 3
@@ -439,14 +439,14 @@ func (p *parser) parseMaxiCode() error {
 				if p.input[p.pos] == '^' {
 					break
 				}
-				rawData += string(p.input[p.pos])
+				rawData.WriteByte(p.input[p.pos])
 				p.pos++
 			}
 			// Decode hex escapes if hex indicator is set
 			if hexIndicator != 0 {
-				data = decodeHexEscapes(rawData, hexIndicator)
+				data = decodeHexEscapes(rawData.String(), hexIndicator)
 			} else {
-				data = rawData
+				data = rawData.String()
 			}
 
 			// Create and add the MaxiCode barcode
@@ -473,10 +473,12 @@ func decodeHexEscapes(data string, indicator rune) string {
 	indicatorStr := string(indicator)
 	i := 0
 	for i < len(data) {
-		if i+2 < len(data) && string(data[i]) == indicatorStr {
+		// Check if we have room for indicator + 2 hex chars (i+3 <= len)
+		if i+3 <= len(data) && string(data[i]) == indicatorStr {
 			// Try to parse next two characters as hex
 			hexStr := data[i+1 : i+3]
-			if val, err := strconv.ParseInt(hexStr, 16, 8); err == nil {
+			// Use ParseUint to handle full byte range 0x00-0xFF (ParseInt fails for > 0x7F)
+			if val, err := strconv.ParseUint(hexStr, 16, 8); err == nil {
 				result.WriteByte(byte(val))
 				i += 3
 				continue

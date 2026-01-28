@@ -599,7 +599,12 @@ type BarcodeMaxiCode struct {
 }
 
 // NewBarcodeMaxiCode creates a new MaxiCode barcode command.
+// Valid modes are 2-6; invalid modes default to mode 4 (standard symbol).
 func NewBarcodeMaxiCode(data string, mode MaxiCodeMode) *BarcodeMaxiCode {
+	// Validate mode range (2-6 are valid MaxiCode modes)
+	if mode < MaxiCodeMode2 || mode > MaxiCodeMode6 {
+		mode = MaxiCodeMode4 // Default to standard symbol mode
+	}
 	return &BarcodeMaxiCode{
 		Mode:         mode,
 		SymbolNumber: 1,
@@ -623,9 +628,10 @@ func (b *BarcodeMaxiCode) WithHexIndicator(indicator rune) *BarcodeMaxiCode {
 
 // ZPL returns the ZPL representation.
 func (b *BarcodeMaxiCode) ZPL() string {
+	// Correct order: ^BD (barcode def) then ^FH (hex indicator) then ^FD (field data)
 	zpl := fmt.Sprintf("^BD%d,%d,%d", b.Mode, b.SymbolNumber, b.SymbolCount)
 	if b.HexIndicator != 0 {
-		zpl = fmt.Sprintf("^FH%c%s", b.HexIndicator, zpl)
+		zpl += fmt.Sprintf("^FH%c", b.HexIndicator)
 	}
 	return zpl + fmt.Sprintf("^FD%s^FS", b.Data)
 }

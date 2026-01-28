@@ -1,0 +1,29 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "barcodes",
+    "Codabar",
+    "Eltron",
+    "golangci",
+    "goimports",
+    "interp",
+    "Labelary",
+    "LOGMARS",
+    "Plessey",
+    "RFID",
+    "Steinberg",
+    "UPCA",
+    "bitmapped",
+    "codecov",
+    "softprops",
+    "fuzztime",
+    "Println",
+    "FDMA"
+  ],
+  "ignorePaths": [
+    "go.sum",
+    "vendor/**",
+    ".git/**"
+  ]
+}

@@ -2,8 +2,6 @@
 
 A native Go library for generating, parsing, and rendering ZPL (Zebra Programming Language) commands for thermal label printers.
 
-**Production-grade, local replacement for Labelary** - rendering differences from real printers are bugs, not features.
-
 ## Features
 
 - Native ZPL generation without external dependencies

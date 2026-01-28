@@ -92,8 +92,8 @@ Comprehensive task list for the go-zpl library.
 
 ### Bitmap Graphics
 
-- [ ] `^GF` - Graphic field (bitmap data)
-- [ ] ASCII hex encoding
+- [x] `^GF` - Graphic field (bitmap data)
+- [x] ASCII hex encoding
 - [ ] Binary encoding
 - [ ] Compressed binary encoding (Z64, LZ77)
 - [ ] PNG to ZPL conversion
@@ -189,7 +189,7 @@ Comprehensive task list for the go-zpl library.
 
 ### Other 2D Barcodes
 
-- [ ] `^BD` - MaxiCode
+- [x] `^BD` - MaxiCode (using ingridhq/maxicode library)
 - [ ] `^BO` - Aztec Code
 - [ ] `^BF` - MicroPDF417
 
@@ -197,23 +197,29 @@ Comprehensive task list for the go-zpl library.
 
 ## Phase 6: Parser
 
-### Lexer
+### Lexer/Parser (Implemented)
 
-- [ ] Tokenize ZPL commands
-- [ ] Handle ^ commands
-- [ ] Handle ~ commands
-- [ ] Handle parameters and data fields
-- [ ] Handle comments
+- [x] Tokenize ZPL commands
+- [x] Handle ^ commands
+- [x] Handle ~ commands
+- [x] Handle parameters and data fields
+- [x] Handle comments (`^FX`)
+- [x] Handle hex escape sequences (`^FH`)
 - [ ] Error reporting with line/column
 
-### Parser
+### Parser Features
 
-- [ ] Build AST from tokens
+- [x] Parse ZPL string to Label object (`zpl.Parse()`)
+- [x] Support all basic commands (^XA, ^XZ, ^FO, ^FT, ^FD, ^FS, etc.)
+- [x] Support font commands (^A0-^A9, ^CF)
+- [x] Support graphic commands (^GB, ^GC, ^GD, ^GE, ^GFA)
+- [x] Support barcode commands (^BY, ^BC, ^BD)
+- [x] Support label configuration (^PO, ^PW, ^LL, ^LH, ^CI)
+- [ ] Build formal AST from tokens
 - [ ] Validate command syntax
-- [ ] Handle nested/compound commands
 - [ ] Preserve formatting for round-trip
 
-### AST
+### AST (Future)
 
 - [ ] Define AST node types
 - [ ] Implement visitor pattern
@@ -249,12 +255,13 @@ Comprehensive task list for the go-zpl library.
 - [x] Circle rendering
 - [x] Ellipse rendering
 - [x] Diagonal line rendering
-- [ ] Bitmap image rendering
+- [x] Bitmap image rendering (`^GFA` ASCII hex format)
 
 ### Barcode Rendering
 
-- [ ] 1D barcode rendering with proper bar widths
-- [ ] Human-readable text below/above barcodes
+- [x] 1D barcode rendering with proper bar widths (Code 128)
+- [x] Human-readable text below/above barcodes
+- [x] MaxiCode rendering (using ingridhq/maxicode library)
 - [ ] QR code rendering
 - [ ] DataMatrix rendering
 - [ ] PDF417 rendering
@@ -371,7 +378,7 @@ Comprehensive task list for the go-zpl library.
 - [ ] Label with QR code
 - [ ] Label with images
 - [ ] Complex multi-element label
-- [ ] Parsing existing ZPL
+- [x] Parsing existing ZPL (via `zpl.Parse()`)
 - [x] Rendering to image
 
 ### Tutorials

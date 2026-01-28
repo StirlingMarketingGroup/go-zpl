@@ -125,8 +125,10 @@ func (p *parser) parseCaretCommand() error {
 		return p.parseCharacterSet()
 	case "FX":
 		return p.parseComment()
+	case "BD":
+		return p.parseMaxiCode()
 	// Commands we recognize but ignore for now
-	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "BD", "B3", "BQ", "BX", "B7":
+	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "B3", "BQ", "BX", "B7":
 		p.skipToNextCommand()
 	default:
 		// Unknown command - skip to next command
@@ -391,6 +393,99 @@ func (p *parser) parseBarcodeCode128() error {
 
 	p.label.Add(bc)
 	return nil
+}
+
+func (p *parser) parseMaxiCode() error {
+	// ^BD command for MaxiCode 2D barcode
+	// Format: ^BDm,n,t where m=mode (2-6), n=symbol number, t=total symbols
+	params := p.readParams()
+	mode := MaxiCodeMode(parseInt(getParam(params, 0), 2))
+	symbolNumber := parseInt(getParam(params, 1), 1)
+	symbolCount := parseInt(getParam(params, 2), 1)
+
+	var hexIndicator rune
+	var data string
+
+	// Look for ^FH (field hexadecimal indicator) and then ^FD or ^FV
+	for p.pos < len(p.input) {
+		p.skipWhitespace()
+		if p.pos >= len(p.input) || p.input[p.pos] != '^' {
+			break
+		}
+
+		// Peek at the next command
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+
+		switch cmd {
+		case "FH":
+			// Field Hexadecimal - read the indicator character
+			if p.pos < len(p.input) && p.input[p.pos] != '^' {
+				hexIndicator = rune(p.input[p.pos])
+				p.pos++
+			} else {
+				hexIndicator = '_' // Default
+			}
+			continue
+		case "FD", "FV":
+			// Read the field data
+			rawData := ""
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData += string(p.input[p.pos])
+				p.pos++
+			}
+			// Decode hex escapes if hex indicator is set
+			if hexIndicator != 0 {
+				data = decodeHexEscapes(rawData, hexIndicator)
+			} else {
+				data = rawData
+			}
+
+			// Create and add the MaxiCode barcode
+			mc := NewBarcodeMaxiCode(data, mode).
+				WithStructuredAppend(symbolNumber, symbolCount)
+			if hexIndicator != 0 {
+				mc.WithHexIndicator(hexIndicator)
+			}
+			p.label.Add(mc)
+			return nil
+		default:
+			// Not a field command, restore position and exit
+			p.pos = save
+			return nil
+		}
+	}
+	return nil
+}
+
+// decodeHexEscapes converts hex escape sequences to their byte values.
+// For example, with indicator '_': "_1E" becomes ASCII 30 (RS).
+func decodeHexEscapes(data string, indicator rune) string {
+	var result strings.Builder
+	indicatorStr := string(indicator)
+	i := 0
+	for i < len(data) {
+		if i+2 < len(data) && string(data[i]) == indicatorStr {
+			// Try to parse next two characters as hex
+			hexStr := data[i+1 : i+3]
+			if val, err := strconv.ParseInt(hexStr, 16, 8); err == nil {
+				result.WriteByte(byte(val))
+				i += 3
+				continue
+			}
+		}
+		result.WriteByte(data[i])
+		i++
+	}
+	return result.String()
 }
 
 func (p *parser) parseGraphicBox() error {

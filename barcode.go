@@ -575,3 +575,63 @@ func (b *BarcodeInterleaved2of5) WriteTo(w io.Writer) (int64, error) {
 	n, err := io.WriteString(w, b.ZPL())
 	return int64(n), err
 }
+
+// MaxiCodeMode represents the MaxiCode encoding mode.
+type MaxiCodeMode int
+
+// MaxiCode modes.
+const (
+	MaxiCodeMode2 MaxiCodeMode = 2 // Structured Carrier Message (US)
+	MaxiCodeMode3 MaxiCodeMode = 3 // Structured Carrier Message (International)
+	MaxiCodeMode4 MaxiCodeMode = 4 // Standard Symbol (full ECC)
+	MaxiCodeMode5 MaxiCodeMode = 5 // Full ECC (secure data)
+	MaxiCodeMode6 MaxiCodeMode = 6 // Reader Programming
+)
+
+// BarcodeMaxiCode represents a ^BD command for MaxiCode 2D barcodes.
+// MaxiCode is a fixed-size 2D barcode primarily used by UPS for package tracking.
+type BarcodeMaxiCode struct {
+	Mode         MaxiCodeMode
+	SymbolNumber int // Symbol number for structured append (1-8)
+	SymbolCount  int // Total symbols in structured append (1-8)
+	Data         string
+	HexIndicator rune // Character used to indicate hex values in data (e.g., '_')
+}
+
+// NewBarcodeMaxiCode creates a new MaxiCode barcode command.
+func NewBarcodeMaxiCode(data string, mode MaxiCodeMode) *BarcodeMaxiCode {
+	return &BarcodeMaxiCode{
+		Mode:         mode,
+		SymbolNumber: 1,
+		SymbolCount:  1,
+		Data:         data,
+	}
+}
+
+// WithStructuredAppend sets the structured append parameters.
+func (b *BarcodeMaxiCode) WithStructuredAppend(symbolNumber, symbolCount int) *BarcodeMaxiCode {
+	b.SymbolNumber = symbolNumber
+	b.SymbolCount = symbolCount
+	return b
+}
+
+// WithHexIndicator sets the hex escape character used in the data.
+func (b *BarcodeMaxiCode) WithHexIndicator(indicator rune) *BarcodeMaxiCode {
+	b.HexIndicator = indicator
+	return b
+}
+
+// ZPL returns the ZPL representation.
+func (b *BarcodeMaxiCode) ZPL() string {
+	zpl := fmt.Sprintf("^BD%d,%d,%d", b.Mode, b.SymbolNumber, b.SymbolCount)
+	if b.HexIndicator != 0 {
+		zpl = fmt.Sprintf("^FH%c%s", b.HexIndicator, zpl)
+	}
+	return zpl + fmt.Sprintf("^FD%s^FS", b.Data)
+}
+
+// WriteTo writes the ZPL to the writer.
+func (b *BarcodeMaxiCode) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, b.ZPL())
+	return int64(n), err
+}

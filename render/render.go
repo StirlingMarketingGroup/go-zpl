@@ -57,7 +57,7 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 		height = label.Height()
 	}
 	if height == 0 {
-		height = 1218 // Default 6-inch label at 203 DPI
+		height = 1240 // Default ~6-inch label at 203 DPI with margin for font descent
 	}
 
 	canvas, err := newCanvas(width, height)
@@ -77,13 +77,10 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 		}
 	}
 
-	// Apply print orientation
-	img := canvas.Image()
-	if label.PrintOrientationSetting() == zpl.PrintOrientationInverted {
-		img = rotateImage180(img)
-	}
-
-	return img, nil
+	// Note: ^POI (Print Orientation Inverted) affects how the printer outputs,
+	// but for preview rendering we show the label as it appears when viewed.
+	// The ZPL coordinates are already laid out for the final appearance.
+	return canvas.Image(), nil
 }
 
 // RenderPNG renders the label and writes it as a PNG image to the writer.
@@ -212,6 +209,9 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 
 	case *zpl.GraphicField:
 		c.drawGraphicField(v)
+
+	case *zpl.BarcodeMaxiCode:
+		c.drawMaxiCode(v)
 
 	// Ignore commands we don't render
 	case *zpl.Comment:
@@ -462,20 +462,4 @@ func (c *canvas) drawGraphicField(gf *zpl.GraphicField) {
 			}
 		}
 	}
-}
-
-// rotateImage180 rotates an image 180 degrees.
-func rotateImage180(src image.Image) image.Image {
-	bounds := src.Bounds()
-	w, h := bounds.Dx(), bounds.Dy()
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			// Map (x, y) to (w-1-x, h-1-y)
-			dst.Set(w-1-x, h-1-y, src.At(bounds.Min.X+x, bounds.Min.Y+y))
-		}
-	}
-
-	return dst
 }

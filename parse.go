@@ -127,8 +127,14 @@ func (p *parser) parseCaretCommand() error {
 		return p.parseComment()
 	case "BD":
 		return p.parseMaxiCode()
+	case "BQ":
+		return p.parseBarcodeQR()
+	case "BX":
+		return p.parseBarcodeDataMatrix()
+	case "B7":
+		return p.parseBarcodePDF417()
 	// Commands we recognize but ignore for now
-	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "B3", "BQ", "BX", "B7":
+	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "B3":
 		p.skipToNextCommand()
 	default:
 		// Unknown command - skip to next command
@@ -389,6 +395,203 @@ func (p *parser) parseBarcodeCode128() error {
 		} else {
 			p.pos = save // Restore position
 		}
+	}
+
+	p.label.Add(bc)
+	return nil
+}
+
+func (p *parser) parseBarcodeQR() error {
+	// ^BQ command for QR Code
+	// Format: ^BQa,b,c where a=orientation, b=model (1-2), c=magnification (1-10)
+	// Data format: ^FD[error_correction][mode],[data]^FS
+	// e.g., ^FDMA,HelloWorld^FS means Medium error correction, Auto mode, data "HelloWorld"
+	params := p.readParams()
+	orient := OrientationNormal
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	model := QRCodeModel(parseInt(getParam(params, 1), 2))
+	magnification := parseInt(getParam(params, 2), 3)
+
+	// Default error correction
+	errorCorrection := QRCodeECMedium
+
+	var data string
+
+	// Look for ^FD or ^FV
+	p.skipWhitespace()
+	if p.pos < len(p.input) && p.input[p.pos] == '^' {
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+		if cmd == "FD" || cmd == "FV" {
+			// Read the raw field data
+			var rawData strings.Builder
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData.WriteByte(p.input[p.pos])
+				p.pos++
+			}
+
+			// Parse the QR data format: [error_correction][mode],[data]
+			// e.g., "MA,HelloWorld" or "HA,https://example.com"
+			fieldData := rawData.String()
+			if len(fieldData) >= 3 && fieldData[2] == ',' {
+				// First char is error correction level
+				switch fieldData[0] {
+				case 'H':
+					errorCorrection = QRCodeECHigh
+				case 'Q':
+					errorCorrection = QRCodeECQuartile
+				case 'M':
+					errorCorrection = QRCodeECMedium
+				case 'L':
+					errorCorrection = QRCodeECLow
+				}
+				// Second char is mode (A=auto, M=manual) - we ignore this
+				// Data starts after the comma
+				data = fieldData[3:]
+			} else {
+				// No prefix, use raw data
+				data = fieldData
+			}
+		} else {
+			p.pos = save // Restore position
+		}
+	}
+
+	bc := NewBarcodeQR(data, magnification).
+		WithOrientation(orient).
+		WithModel(model).
+		WithErrorCorrection(errorCorrection)
+
+	p.label.Add(bc)
+	return nil
+}
+
+func (p *parser) parseBarcodeDataMatrix() error {
+	// ^BX command for DataMatrix barcode
+	// Format: ^BXa,b,c,d,e,f,g,h where:
+	// a=orientation, b=height (module size), c=quality level,
+	// d=columns, e=rows, f=format ID, g=escape char, h=aspect ratio
+	params := p.readParams()
+
+	orient := OrientationNormal
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	height := parseInt(getParam(params, 1), 3)         // Default module size 3
+	qualityLevel := parseInt(getParam(params, 2), 200) // Default quality 200
+	columns := parseInt(getParam(params, 3), 0)        // Auto
+	rows := parseInt(getParam(params, 4), 0)           // Auto
+	formatID := parseInt(getParam(params, 5), 6)       // ECC 200
+	escapeChar := '~'
+	if getParam(params, 6) != "" {
+		escapeChar = rune(getParam(params, 6)[0])
+	}
+	aspectRatio := parseInt(getParam(params, 7), 1) // Square
+
+	var data string
+
+	// Look for ^FD or ^FV
+	p.skipWhitespace()
+	if p.pos < len(p.input) && p.input[p.pos] == '^' {
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+		if cmd == "FD" || cmd == "FV" {
+			var rawData strings.Builder
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData.WriteByte(p.input[p.pos])
+				p.pos++
+			}
+			data = rawData.String()
+		} else {
+			p.pos = save
+		}
+	}
+
+	bc := NewBarcodeDataMatrix(data, height).
+		WithOrientation(orient).
+		WithQualityLevel(qualityLevel)
+	if columns > 0 && rows > 0 {
+		bc.WithSize(columns, rows)
+	}
+	bc.FormatID = formatID
+	bc.EscapeChar = escapeChar
+	bc.AspectRatio = aspectRatio
+
+	p.label.Add(bc)
+	return nil
+}
+
+func (p *parser) parseBarcodePDF417() error {
+	// ^B7 command for PDF417 barcode
+	// Format: ^B7o,h,s,c,r,t where:
+	// o=orientation, h=height, s=security level (0-8),
+	// c=data columns (1-30), r=rows (3-90), t=truncate (Y/N)
+	params := p.readParams()
+
+	orient := OrientationNormal
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	height := parseInt(getParam(params, 1), 50)       // Default height
+	securityLevel := parseInt(getParam(params, 2), 0) // Default security 0
+	dataColumns := parseInt(getParam(params, 3), 0)   // Auto
+	rows := parseInt(getParam(params, 4), 0)          // Auto
+	truncate := getParam(params, 5) == "Y"
+
+	var data string
+
+	// Look for ^FD or ^FV
+	p.skipWhitespace()
+	if p.pos < len(p.input) && p.input[p.pos] == '^' {
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+		if cmd == "FD" || cmd == "FV" {
+			var rawData strings.Builder
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData.WriteByte(p.input[p.pos])
+				p.pos++
+			}
+			data = rawData.String()
+		} else {
+			p.pos = save
+		}
+	}
+
+	bc := NewBarcodePDF417(data, height).
+		WithOrientation(orient).
+		WithSecurityLevel(securityLevel).
+		WithTruncation(truncate)
+	if dataColumns > 0 {
+		bc.WithColumns(dataColumns)
+	}
+	if rows > 0 {
+		bc.WithRows(rows)
 	}
 
 	p.label.Add(bc)

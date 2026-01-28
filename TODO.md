@@ -262,9 +262,9 @@ Comprehensive task list for the go-zpl library.
 - [x] 1D barcode rendering with proper bar widths (Code 128)
 - [x] Human-readable text below/above barcodes
 - [x] MaxiCode rendering (using ingridhq/maxicode library)
-- [ ] QR code rendering
-- [ ] DataMatrix rendering
-- [ ] PDF417 rendering
+- [x] QR code rendering (using skip2/go-qrcode library)
+- [x] DataMatrix rendering (using boombuler/barcode library)
+- [x] PDF417 rendering (using boombuler/barcode library)
 
 ### Output Formats
 

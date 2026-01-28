@@ -46,10 +46,10 @@ Comprehensive task list for the go-zpl library.
 - [ ] Implement Font F (26x13 matrix)
 - [ ] Implement Font G (60x40 matrix)
 - [ ] Implement Font H (21x13 matrix)
-- [ ] Implement Font 0 (15x12 matrix)
+- [x] Implement Font 0 (scanned from real Zebra printer output, traced to TTF)
 - [ ] Implement remaining fonts (GS, P, Q, R, S, T, U, V)
 - [ ] Font scaling algorithm matching Zebra's implementation
-- [ ] Font rotation (0°, 90°, 180°, 270°)
+- [x] Font rotation (0°, 90°, 180°, 270°) - implemented in renderer
 
 ### Text Commands (ZPL Generation)
 
@@ -226,27 +226,29 @@ Comprehensive task list for the go-zpl library.
 
 ### Core Renderer
 
-- [ ] Define `Renderer` type
-- [ ] Implement `image.Image` output
-- [ ] Support multiple DPI (203, 300, 600)
-- [ ] Label size configuration
-- [ ] Background color (white by default)
-- [ ] Print color (black by default)
+- [x] Define `Renderer` type
+- [x] Implement `image.Image` output
+- [x] Support multiple DPI (203, 300, 600)
+- [x] Label size configuration
+- [x] Background color (white by default)
+- [x] Print color (black by default)
 
 ### Text Rendering
 
-- [ ] Render built-in fonts at all sizes
-- [ ] Font scaling algorithm
-- [ ] Text rotation
+- [x] Render Font 0 (scanned from real Zebra printer, traced to TTF)
+- [x] Font scaling algorithm
+- [x] Text rotation (0°, 90°, 180°, 270°)
 - [ ] Text alignment in field blocks
-- [ ] Reverse print (white on black)
+- [x] Reverse print (white on black) - partial (needs black background fill)
+- [x] CJK character support via Noto Sans CJK fallback
+- [ ] CJK fallback for rotated text orientations (R, I, B)
 
 ### Graphics Rendering
 
-- [ ] Rectangle/box rendering
-- [ ] Circle rendering
-- [ ] Ellipse rendering
-- [ ] Diagonal line rendering
+- [x] Rectangle/box rendering
+- [x] Circle rendering
+- [x] Ellipse rendering
+- [x] Diagonal line rendering
 - [ ] Bitmap image rendering
 
 ### Barcode Rendering
@@ -259,7 +261,7 @@ Comprehensive task list for the go-zpl library.
 
 ### Output Formats
 
-- [ ] PNG export
+- [x] PNG export
 - [ ] JPEG export
 - [ ] PDF export (optional)
 - [ ] Raw bitmap for printing
@@ -370,7 +372,7 @@ Comprehensive task list for the go-zpl library.
 - [ ] Label with images
 - [ ] Complex multi-element label
 - [ ] Parsing existing ZPL
-- [ ] Rendering to image
+- [x] Rendering to image
 
 ### Tutorials
 
@@ -382,11 +384,45 @@ Comprehensive task list for the go-zpl library.
 
 ## Known Issues / Research Needed
 
-- [ ] Document exact font bitmap data for all built-in fonts
+- [x] Document exact font bitmap data for all built-in fonts - Font 0 extracted from real printer
 - [ ] Research Zebra's exact font scaling algorithm
 - [ ] Research exact barcode bar width calculations
 - [ ] Determine differences between printer firmware versions
 - [ ] Document any known deviations from real printer output
+- [ ] FieldReverse (^FR) needs black background fill behind text, not just inverted pixels
+
+---
+
+## Internal Tools (for font development)
+
+These tools are in the `tools/` directory with `//go:build ignore` tags:
+
+- `tools/smart_extract.go` - Extract glyphs from scanned font grid (page 1)
+- `tools/smart_extract_page2.go` - Extract glyphs from page 2 scan
+- `tools/trim_glyphs.go` - Normalize glyph heights using reference metrics
+- `tools/extract_glyphs/main.go` - Original manual glyph extraction tool
+- `tools/build_font.py` - FontForge script to build TTF from SVG glyphs
+
+---
+
+## Phase 12: Tools & Web UI
+
+### CLI Tool
+
+- [ ] `zplrender` command-line tool for converting ZPL files to images
+- [ ] Accept ZPL file path or stdin input
+- [ ] Output formats: PNG, JPEG
+- [ ] Options for DPI, label dimensions
+- [ ] Batch processing multiple files
+
+### Web UI (WebAssembly)
+
+- [ ] Compile renderer to WebAssembly using TinyGo or standard Go WASM
+- [ ] Create simple web interface for ZPL preview
+- [ ] Live rendering as user types ZPL
+- [ ] Auto-deploy to GitHub Pages via GitHub Actions
+- [ ] Reference implementation: [go2ts](https://github.com/StirlingMarketingGroup/go2ts) pattern
+- [ ] No server required - fully client-side rendering
 
 ---
 

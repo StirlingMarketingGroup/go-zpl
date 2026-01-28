@@ -1,0 +1,60 @@
+^XA
+^PW800
+^LL1200
+
+^FX === Font 0 Glyph Chart - Fits 4x6 at 200 DPI ===
+
+^FO20,20^A0N,20,24^FDFONT 0 - 50pt^FS
+^FO0,45^GB800,2,2^FS
+
+^FX --- Uppercase ---
+^FO20,60^A0N,50,50^FDABCDEFGHIJKLM^FS
+^FO20,115^A0N,50,50^FDNOPQRSTUVWXYZ^FS
+
+^FO0,170^GB800,2,2^FS
+
+^FX --- Lowercase ---
+^FO20,185^A0N,50,50^FDabcdefghijklm^FS
+^FO20,240^A0N,50,50^FDnopqrstuvwxyz^FS
+
+^FO0,295^GB800,2,2^FS
+
+^FX --- Numbers ---
+^FO20,310^A0N,50,50^FD0123456789^FS
+
+^FO0,365^GB800,2,2^FS
+
+^FX --- Punctuation ---
+^FO20,380^A0N,50,50^FD!"#$%&'()*+,-.^FS
+^FO20,435^A0N,50,50^FD/:;<=>?@[\]^_`^FS
+^FO20,490^A0N,50,50^FD{|}~^FS
+
+^FO0,545^GB800,2,2^FS
+
+^FX --- Reference Text ---
+^FO20,560^A0N,50,50^FDThe Quick Brown^FS
+^FO20,615^A0N,50,50^FDFox Jumps Over^FS
+^FO20,670^A0N,50,50^FDThe Lazy Dog^FS
+
+^FO0,725^GB800,2,2^FS
+
+^FX --- Larger sample for detail ---
+^FO20,745^A0N,70,70^FDHAMBURG^FS
+^FO20,820^A0N,70,70^FDfontgrp^FS
+
+^FO0,900^GB800,2,2^FS
+
+^FX --- Small reference ---
+^FO20,915^A0N,30,30^FDABCDEFGHIJKLMNOPQRSTUVWXYZ^FS
+^FO20,950^A0N,30,30^FDabcdefghijklmnopqrstuvwxyz^FS
+^FO20,985^A0N,30,30^FD0123456789^FS
+
+^FO0,1020^GB800,2,2^FS
+
+^FX --- Alignment corners ---
+^FO0,1030^GB10,10,10^FS
+^FO790,1030^GB10,10,10^FS
+
+^FO200,1050^A0N,16,18^FD4x6 label - 200 DPI^FS
+
+^XZ

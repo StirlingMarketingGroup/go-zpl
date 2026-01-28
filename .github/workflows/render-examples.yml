@@ -1,0 +1,115 @@
+name: Render Example Labels
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'testdata/**/*.zpl'
+      - 'render/**'
+      - 'parse.go'
+      - 'barcode.go'
+      - 'graphic.go'
+      - '.github/workflows/render-examples.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Render example labels
+        run: |
+          cat > /tmp/render_examples.go << 'GOEOF'
+          //go:build ignore
+
+          package main
+
+          import (
+              "fmt"
+              "os"
+              "path/filepath"
+              "strings"
+
+              zpl "github.com/StirlingMarketingGroup/go-zpl"
+              "github.com/StirlingMarketingGroup/go-zpl/render"
+          )
+
+          func main() {
+              // Find all .zpl files in testdata
+              err := filepath.Walk("testdata", func(path string, info os.FileInfo, err error) error {
+                  if err != nil {
+                      return err
+                  }
+                  if !info.IsDir() && strings.HasSuffix(path, ".zpl") {
+                      renderZPL(path)
+                  }
+                  return nil
+              })
+              if err != nil {
+                  fmt.Fprintf(os.Stderr, "Error walking testdata: %v\n", err)
+                  os.Exit(1)
+              }
+          }
+
+          func renderZPL(zplPath string) {
+              data, err := os.ReadFile(zplPath)
+              if err != nil {
+                  fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", zplPath, err)
+                  return
+              }
+
+              label, err := zpl.Parse(string(data))
+              if err != nil {
+                  fmt.Fprintf(os.Stderr, "Error parsing %s: %v\n", zplPath, err)
+                  return
+              }
+
+              // Create renderer with label dimensions
+              width := label.Width()
+              if width == 0 {
+                  width = 812
+              }
+              renderer := render.New(zpl.DPI203).WithSize(width, 0)
+
+              // Output PNG path
+              pngPath := strings.TrimSuffix(zplPath, ".zpl") + "_rendered.png"
+
+              f, err := os.Create(pngPath)
+              if err != nil {
+                  fmt.Fprintf(os.Stderr, "Error creating %s: %v\n", pngPath, err)
+                  return
+              }
+
+              if err := renderer.RenderPNG(label, f); err != nil {
+                  f.Close()
+                  fmt.Fprintf(os.Stderr, "Error rendering %s: %v\n", zplPath, err)
+                  return
+              }
+              f.Close()
+
+              fmt.Printf("Rendered %s -> %s\n", zplPath, pngPath)
+          }
+          GOEOF
+          go run /tmp/render_examples.go
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code testdata/ || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit updated renders
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add testdata/**/*.png
+          git commit -m "Auto-render example labels [skip ci]"
+          git push

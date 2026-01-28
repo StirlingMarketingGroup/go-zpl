@@ -2,6 +2,8 @@
 
 A native Go library for generating, parsing, and rendering ZPL (Zebra Programming Language) commands for thermal label printers.
 
+![Example UPS Label](testdata/ups/import_control_rendered.png)
+
 ## Features
 
 - Native ZPL generation without external dependencies
@@ -10,11 +12,11 @@ A native Go library for generating, parsing, and rendering ZPL (Zebra Programmin
 - Implements standard Go interfaces (`fmt.Stringer`, `io.WriterTo`, `encoding.TextMarshaler`)
 - Support for common ZPL elements:
   - Text fields with fonts and positioning
-  - Barcodes (Code 128, Code 39, QR codes, DataMatrix, PDF417, EAN-13, UPC-A, etc.)
+  - Barcodes (Code 128, Code 39, QR codes, DataMatrix, PDF417, MaxiCode, EAN-13, UPC-A, etc.)
   - Graphics (boxes, circles, ellipses, diagonal lines)
   - Field blocks and text formatting
-- ZPL parsing and validation (coming soon)
-- Local rendering to images (coming soon)
+- **ZPL parsing** - Parse existing ZPL strings into Label objects
+- **Local rendering** - Render labels to PNG images without external services
 
 ## Installation
 
@@ -154,6 +156,50 @@ label.WriteTo(writer)
 text, err := label.MarshalText()
 ```
 
+### Parsing ZPL
+
+```go
+import "github.com/StirlingMarketingGroup/go-zpl"
+
+zplString := `^XA
+^FO50,50^A0N,30,30^FDHello World^FS
+^FO50,100^BQN,2,5^FDMA,https://example.com^FS
+^XZ`
+
+label, err := zpl.Parse(zplString)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Work with the parsed label
+fmt.Printf("Label has %d commands\n", len(label.Commands()))
+```
+
+### Rendering to Images
+
+```go
+import (
+    "os"
+    "github.com/StirlingMarketingGroup/go-zpl"
+    "github.com/StirlingMarketingGroup/go-zpl/render"
+)
+
+// Create or parse a label
+label := zpl.NewLabel().
+    SetDPI(zpl.DPI203).
+    SetSize(4, 6, zpl.UnitInches).
+    TextField(50, 50, zpl.Font0, 30, 30, "Hello, World!").
+    QRCode(50, 100, "https://example.com", 5)
+
+// Create a renderer
+renderer := render.New(zpl.DPI203).WithSize(812, 1218)
+
+// Render to PNG file
+f, _ := os.Create("label.png")
+defer f.Close()
+renderer.RenderPNG(label, f)
+```
+
 ## Supported Commands
 
 ### Label Control
@@ -180,6 +226,7 @@ text, err := label.MarshalText()
 - `^BQ` - QR Code
 - `^BX` - DataMatrix
 - `^B7` - PDF417
+- `^BD` - MaxiCode
 - `^BE` - EAN-13
 - `^BU` - UPC-A
 - `^B2` - Interleaved 2 of 5

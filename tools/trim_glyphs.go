@@ -24,26 +24,72 @@ const (
 func main() {
 	fmt.Println("=== Finding metrics from reference glyphs ===")
 
-	// Load H to find cap line and baseline
-	hImg := loadGlyph("upper_H")
-	if hImg == nil {
-		fmt.Println("ERROR: Could not load upper_H")
-		os.Exit(1)
+	// Find cap line by scanning ALL uppercase letters for the minimum top Y
+	// This ensures we don't cut off any letter's top
+	capLine := 9999
+	baseline := 0
+	for _, letter := range []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"} {
+		img := loadGlyph("upper_" + letter)
+		if img == nil {
+			continue
+		}
+		bounds := findGlyphBoundsNoSkip(img)
+		if bounds.Empty() {
+			continue
+		}
+		if bounds.Min.Y < capLine {
+			capLine = bounds.Min.Y
+			fmt.Printf("  New cap line from '%s': %d\n", letter, capLine)
+		}
+		if bounds.Max.Y > baseline {
+			baseline = bounds.Max.Y
+		}
 	}
-	hBounds := findGlyphBounds(hImg)
-	capLine := hBounds.Min.Y
-	baseline := hBounds.Max.Y
-	fmt.Printf("From 'H': cap=%d, baseline=%d\n", capLine, baseline)
+	fmt.Printf("Cap line: %d (from scanning all uppercase)\n", capLine)
+	fmt.Printf("Baseline: %d\n", baseline)
+
+	// Find digit cap line - the minimum top Y across all digits
+	// This ensures all digits align to the same top position
+	digitCapLine := 9999
+	digitTops := make(map[string]int) // Store each digit's actual top for adjustment
+	for _, digit := range []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"} {
+		img := loadGlyph("digit_" + digit)
+		if img == nil {
+			continue
+		}
+		bounds := findGlyphBoundsNoSkip(img)
+		if bounds.Empty() {
+			continue
+		}
+		digitTops["digit_"+digit] = bounds.Min.Y
+		if bounds.Min.Y < digitCapLine {
+			digitCapLine = bounds.Min.Y
+			fmt.Printf("  New digit cap line from '%s': %d\n", digit, digitCapLine)
+		}
+	}
+	fmt.Printf("Digit cap line: %d\n", digitCapLine)
+	// Calculate how much to adjust each digit upward to align with digit cap line
+	digitAdjust := make(map[string]int)
+	for name, top := range digitTops {
+		digitAdjust[name] = top - digitCapLine
+		if digitAdjust[name] != 0 {
+			fmt.Printf("  %s needs adjustment: %d pixels up\n", name, digitAdjust[name])
+		}
+	}
 
 	// Load underscore to find the absolute bottom
 	// Underscore sits ON the baseline, so its bottom pixel is our descender line
+	// Use NoSkip because underscore is at the bottom of the cell
+	var descenderLine int
 	underscoreImg := loadGlyph("underscore")
 	if underscoreImg == nil {
 		fmt.Println("WARNING: Could not load underscore, using baseline as bottom")
+		descenderLine = baseline
+	} else {
+		underscoreBounds := findGlyphBoundsNoSkip(underscoreImg)
+		descenderLine = underscoreBounds.Max.Y
+		fmt.Printf("From '_': bottom=%d\n", descenderLine)
 	}
-	underscoreBounds := findGlyphBounds(underscoreImg)
-	descenderLine := underscoreBounds.Max.Y
-	fmt.Printf("From '_': bottom=%d\n", descenderLine)
 
 	// If underscore is above baseline (shouldn't happen), use baseline
 	if descenderLine < baseline {
@@ -66,7 +112,8 @@ func main() {
 			continue
 		}
 
-		bounds := findGlyphBounds(img)
+		// Use NoSkip since extraction already removed grid borders
+		bounds := findGlyphBoundsNoSkip(img)
 		if bounds.Empty() {
 			fmt.Printf("  %s - SKIP (empty)\n", name)
 			continue
@@ -105,8 +152,13 @@ func main() {
 
 		// Copy glyph pixels at correct vertical position
 		// Position in output = position in source - capLine
+		// For digits, apply additional adjustment to align them all to the same top
+		yAdjust := 0
+		if adj, ok := digitAdjust[name]; ok {
+			yAdjust = adj
+		}
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			outY := y - capLine
+			outY := y - capLine - yAdjust
 			if outY < 0 || outY >= h {
 				continue
 			}
@@ -143,7 +195,11 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("  %s: %dx%d\n", name, w, h)
+		if yAdjust > 0 {
+			fmt.Printf("  %s: %dx%d (adjusted %d px up)\n", name, w, h, yAdjust)
+		} else {
+			fmt.Printf("  %s: %dx%d\n", name, w, h)
+		}
 	}
 
 	fmt.Println("\n=== Done! ===")
@@ -167,6 +223,16 @@ func loadGlyph(name string) image.Image {
 }
 
 func findGlyphBounds(img image.Image) image.Rectangle {
+	return findGlyphBoundsWithSkip(img, edgeSkip)
+}
+
+// findGlyphBoundsNoSkip finds bounds without skipping edge rows
+// Use this for glyphs near edges (like underscore at bottom)
+func findGlyphBoundsNoSkip(img image.Image) image.Rectangle {
+	return findGlyphBoundsWithSkip(img, 0)
+}
+
+func findGlyphBoundsWithSkip(img image.Image, skip int) image.Rectangle {
 	if img == nil {
 		return image.Rectangle{}
 	}
@@ -175,9 +241,9 @@ func findGlyphBounds(img image.Image) image.Rectangle {
 	minX, minY := bounds.Max.X, bounds.Max.Y
 	maxX, maxY := bounds.Min.X, bounds.Min.Y
 
-	// Skip first/last edgeSkip rows to avoid grid line artifacts
-	startY := bounds.Min.Y + edgeSkip
-	endY := bounds.Max.Y - edgeSkip
+	// Skip first/last skip rows to avoid grid line artifacts
+	startY := bounds.Min.Y + skip
+	endY := bounds.Max.Y - skip
 	if startY >= endY {
 		startY = bounds.Min.Y
 		endY = bounds.Max.Y

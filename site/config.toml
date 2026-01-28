@@ -1,0 +1,12 @@
+baseURL = "https://stirlingmarketinggroup.github.io/go-zpl/"
+title = "ZPL Label Renderer"
+
+[params]
+description = "Online ZPL to PNG renderer - no server required"
+
+[server]
+[[server.headers]]
+for = "/**"
+[server.headers.values]
+Cross-Origin-Opener-Policy = "same-origin"
+Cross-Origin-Embedder-Policy = "require-corp"

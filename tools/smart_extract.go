@@ -255,47 +255,104 @@ func findVerticalLines(img image.Image) []int {
 }
 
 // findWhiteRight finds first white pixel moving right from startX
+// Samples multiple Y positions and returns the MAX X to handle varying border thickness
 func findWhiteRight(img image.Image, startX, top, bottom int) int {
-	midY := (top + bottom) / 2
-	for x := startX; x < startX+100; x++ {
-		if !isDark(img.At(x, midY)) {
-			return x
+	bounds := img.Bounds()
+	maxX := startX
+	for y := top + 10; y < bottom-10; y += 20 {
+		endX := startX + 100
+		if endX > bounds.Max.X {
+			endX = bounds.Max.X
+		}
+		for x := startX; x < endX; x++ {
+			if !isDark(img.At(x, y)) {
+				if x > maxX {
+					maxX = x
+				}
+				break
+			}
 		}
 	}
-	return startX + 10
+	if maxX == startX {
+		return startX + 10
+	}
+	return maxX
 }
 
 // findWhiteLeft finds first white pixel moving left from startX
+// Samples multiple Y positions and returns the MIN X to handle varying border thickness
 func findWhiteLeft(img image.Image, startX, top, bottom int) int {
-	midY := (top + bottom) / 2
-	for x := startX; x > startX-100; x-- {
-		if !isDark(img.At(x, midY)) {
-			return x
+	bounds := img.Bounds()
+	minX := startX
+	for y := top + 10; y < bottom-10; y += 20 {
+		endX := startX - 100
+		if endX < bounds.Min.X {
+			endX = bounds.Min.X
+		}
+		for x := startX; x > endX; x-- {
+			if !isDark(img.At(x, y)) {
+				if x < minX {
+					minX = x
+				}
+				break
+			}
 		}
 	}
-	return startX - 10
+	if minX == startX {
+		return startX - 10
+	}
+	return minX
 }
 
 // findWhiteDown finds first white pixel moving down from startY
+// Samples multiple X positions and returns the MAX Y to handle varying border thickness
 func findWhiteDown(img image.Image, startY, left, right int) int {
-	midX := (left + right) / 2
-	for y := startY; y < startY+100; y++ {
-		if !isDark(img.At(midX, y)) {
-			return y
+	bounds := img.Bounds()
+	maxY := startY
+	// Sample at multiple X positions across the box
+	for x := left + 10; x < right-10; x += 20 {
+		endY := startY + 100
+		if endY > bounds.Max.Y {
+			endY = bounds.Max.Y
+		}
+		for y := startY; y < endY; y++ {
+			if !isDark(img.At(x, y)) {
+				if y > maxY {
+					maxY = y
+				}
+				break
+			}
 		}
 	}
-	return startY + 10
+	if maxY == startY {
+		return startY + 10
+	}
+	return maxY
 }
 
 // findWhiteUp finds first white pixel moving up from startY
+// Samples multiple X positions and returns the MIN Y to handle varying border thickness
 func findWhiteUp(img image.Image, startY, left, right int) int {
-	midX := (left + right) / 2
-	for y := startY; y > startY-100; y-- {
-		if !isDark(img.At(midX, y)) {
-			return y
+	bounds := img.Bounds()
+	minY := startY
+	for x := left + 10; x < right-10; x += 20 {
+		endY := startY - 100
+		if endY < bounds.Min.Y {
+			endY = bounds.Min.Y
+		}
+		for y := startY; y > endY; y-- {
+			if !isDark(img.At(x, y)) {
+				if y < minY {
+					minY = y
+				}
+				break
+			}
 		}
 	}
-	return startY - 10
+	if minY == startY {
+		return startY - 10
+	}
+	return minY
 }
 
 func isDark(c color.Color) bool {

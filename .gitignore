@@ -28,3 +28,8 @@ Thumbs.db
 
 # Test artifacts
 testdata/output/
+
+# Hugo build outputs
+site/public/
+site/resources/
+site/.hugo_build.lock

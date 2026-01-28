@@ -3,6 +3,7 @@ package render
 import (
 	"image"
 	"image/draw"
+	"strings"
 
 	"github.com/ingridhq/maxicode"
 
@@ -14,9 +15,13 @@ import (
 // - 30 rows, 33 columns of hexagonal modules
 // - Center finder pattern (bullseye)
 
-// upsPrimaryPadding is the 15-character padding UPS uses in their ZPL
-// for the primary message encoding in Mode 2/3 MaxiCodes.
-const upsPrimaryPadding = "000000000000000"
+// upsPrimaryLen is the length of the UPS primary message prefix in ZPL.
+// This 15-character prefix contains postal/country/service info that is
+// redundant with what's in the structured carrier message.
+const upsPrimaryLen = 15
+
+// scmHeader is the Structured Carrier Message header for UPS MaxiCodes.
+const scmHeader = "[)>\x1e01\x1d"
 
 // drawMaxiCode renders a MaxiCode 2D barcode at the current position.
 func (c *canvas) drawMaxiCode(mc *zpl.BarcodeMaxiCode) {
@@ -24,24 +29,28 @@ func (c *canvas) drawMaxiCode(mc *zpl.BarcodeMaxiCode) {
 		return
 	}
 
-	// Encode the MaxiCode data
-	// Try the specified mode first
-	grid, err := maxicode.Encode(int(mc.Mode), 0, mc.Data)
+	data := mc.Data
+
+	// For Mode 2/3 (UPS), the ZPL data often has a 15-character primary message
+	// prefix before the [)> header. The maxicode library expects the data to
+	// start with the SCM header, so we need to strip this prefix.
+	if mc.Mode == zpl.MaxiCodeMode2 || mc.Mode == zpl.MaxiCodeMode3 {
+		// Find the SCM header position
+		if idx := strings.Index(data, scmHeader); idx > 0 && idx <= upsPrimaryLen {
+			// Strip the prefix - it's the UPS primary message placeholder
+			data = data[idx:]
+		}
+	}
+
+	// Try encoding with the specified mode
+	grid, err := maxicode.Encode(int(mc.Mode), 0, data)
 	if err != nil {
 		// Mode 2/3 have strict UPS format requirements
 		// Fall back to mode 4 (standard symbol) which accepts any data
-		grid, err = maxicode.Encode(4, 0, mc.Data)
+		grid, err = maxicode.Encode(4, 0, data)
 		if err != nil {
-			// Still failing - try stripping the UPS primary message padding
-			data := mc.Data
-			if len(data) > len(upsPrimaryPadding) && data[:len(upsPrimaryPadding)] == upsPrimaryPadding {
-				data = data[len(upsPrimaryPadding):]
-			}
-			grid, err = maxicode.Encode(4, 0, data)
-			if err != nil {
-				// If encoding still fails, silently skip (data may be malformed)
-				return
-			}
+			// If encoding still fails, silently skip (data may be malformed)
+			return
 		}
 	}
 

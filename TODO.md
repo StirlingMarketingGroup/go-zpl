@@ -416,11 +416,11 @@ These tools are in the `tools/` directory with `//go:build ignore` tags:
 
 ### CLI Tool
 
-- [ ] `zplrender` command-line tool for converting ZPL files to images
-- [ ] Accept ZPL file path or stdin input
-- [ ] Output formats: PNG, JPEG
-- [ ] Options for DPI, label dimensions
-- [ ] Batch processing multiple files
+- [x] `zplrender` command-line tool for converting ZPL files to images
+- [x] Accept ZPL file path or stdin input
+- [x] Output formats: PNG, JPEG
+- [x] Options for DPI, label dimensions
+- [x] Batch processing multiple files
 
 ### Web UI (WebAssembly)
 

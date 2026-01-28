@@ -20,8 +20,38 @@ A native Go library for generating, parsing, and rendering ZPL (Zebra Programmin
 
 ## Installation
 
+### Library
+
 ```bash
 go get github.com/StirlingMarketingGroup/go-zpl
+```
+
+### CLI Tool
+
+```bash
+go install github.com/StirlingMarketingGroup/go-zpl/cmd/zplrender@latest
+```
+
+## CLI Usage
+
+```bash
+# Convert ZPL file to PNG
+zplrender label.zpl
+
+# Specify output filename
+zplrender -o output.png label.zpl
+
+# Render at 300 DPI
+zplrender -dpi 300 label.zpl
+
+# Output as JPEG
+zplrender -format jpeg label.zpl
+
+# Read from stdin
+cat label.zpl | zplrender -o output.png
+
+# Show all options
+zplrender -help
 ```
 
 ## Quick Start

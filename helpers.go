@@ -13,7 +13,7 @@ func (l *Label) TextFieldAt(x, y float64, unit Unit, font Font, height, width in
 }
 
 // TextBlock adds a text block with wrapping at the specified position.
-func (l *Label) TextBlock(x, y int, font Font, height, width int, blockWidth, maxLines int, justify Justification, data string) *Label {
+func (l *Label) TextBlock(x, y int, font Font, height, width, blockWidth, maxLines int, justify Justification, data string) *Label {
 	return l.Add(NewFieldOrigin(x, y)).
 		Add(NewScalableFont(font, height, width)).
 		Add(NewFieldBlock(blockWidth).WithMaxLines(maxLines).WithJustification(justify)).

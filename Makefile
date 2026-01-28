@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet build clean coverage fuzz help
+.PHONY: all test lint fmt vet build clean coverage fuzz help setup hooks
 
 # Default target
 all: lint test build
@@ -48,6 +48,15 @@ tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 
+# Install git hooks
+hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed from .githooks/"
+
+# Full development setup (tools + hooks)
+setup: tools hooks
+	@echo "Development environment ready!"
+
 # Run example
 example:
 	go run ./examples/...
@@ -58,7 +67,7 @@ bench:
 
 # Generate documentation
 docs:
-	@echo "View documentation at: https://pkg.go.dev/github.com/brianleishman/go-zpl"
+	@echo "View documentation at: https://pkg.go.dev/github.com/StirlingMarketingGroup/go-zpl"
 	go doc -all .
 
 help:
@@ -73,6 +82,8 @@ help:
 	@echo "  fuzz      - Run fuzz tests"
 	@echo "  clean     - Clean build artifacts"
 	@echo "  tools     - Install development tools"
+	@echo "  hooks     - Install git pre-commit hooks"
+	@echo "  setup     - Full dev setup (tools + hooks)"
 	@echo "  bench     - Run benchmarks"
 	@echo "  docs      - View package documentation"
 	@echo "  help      - Show this help message"

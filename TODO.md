@@ -8,7 +8,7 @@ Comprehensive task list for the go-zpl library.
 
 - [x] Set up CI/CD (GitHub Actions)
 - [x] Add linting configuration (golangci-lint)
-- [ ] Add pre-commit hooks
+- [x] Add pre-commit hooks
 - [x] Set up test coverage reporting
 
 ### Core Types & Interfaces

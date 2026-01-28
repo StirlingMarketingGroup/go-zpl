@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Pre-commit hook for go-zpl
+# Runs formatting checks, linting, and tests before allowing commit
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check if there are any staged Go files
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    echo "No Go files staged, skipping Go checks."
+    exit 0
+fi
+
+# Run gofmt check
+echo "Checking gofmt..."
+UNFORMATTED=$(gofmt -l $STAGED_GO_FILES)
+if [ -n "$UNFORMATTED" ]; then
+    echo "❌ The following files need formatting:"
+    echo "$UNFORMATTED"
+    echo ""
+    echo "Run 'gofmt -w .' or 'make fmt' to fix."
+    exit 1
+fi
+echo "✓ gofmt passed"
+
+# Run go vet
+echo "Running go vet..."
+if ! go vet ./...; then
+    echo "❌ go vet failed"
+    exit 1
+fi
+echo "✓ go vet passed"
+
+# Run golangci-lint if available
+if command -v golangci-lint &> /dev/null; then
+    echo "Running golangci-lint..."
+    if ! golangci-lint run --fast; then
+        echo "❌ golangci-lint failed"
+        exit 1
+    fi
+    echo "✓ golangci-lint passed"
+else
+    echo "⚠ golangci-lint not installed, skipping (install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)"
+fi
+
+# Run tests
+echo "Running tests..."
+if ! go test -short ./...; then
+    echo "❌ Tests failed"
+    exit 1
+fi
+echo "✓ Tests passed"
+
+echo ""
+echo "✅ All pre-commit checks passed!"

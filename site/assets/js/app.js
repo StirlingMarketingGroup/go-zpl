@@ -264,17 +264,14 @@ END:VCARD^FS
 
 ^FX Contact details (to the right of QR)
 ^CF0,24
-^FO300,210^FD+1 (555) 123-4567^FS
-^FO300,245^FDjane.smith@acme.dev^FS
-^FO300,280^FDacme.dev^FS
-^FO300,315^FDgithub.com/janesmith^FS
+^FO300,220^FD+1 (555) 123-4567^FS
+^FO300,255^FDjane.smith@acme.dev^FS
+^FO300,290^FDacme.dev^FS
+^FO300,325^FDgithub.com/janesmith^FS
 
-^FX Scan prompt
-^CF0,18
-^FO85,395^FDScan to save contact^FS
-
-^FX Bottom border
-^FO50,560^GB710,3,3^FS
+^FX Scan prompt (below QR code)
+^CF0,16
+^FO70,500^FDScan to save contact^FS
 
 ^XZ`
     },

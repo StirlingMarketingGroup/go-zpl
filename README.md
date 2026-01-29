@@ -4,21 +4,9 @@ A native Go library for generating, parsing, and rendering ZPL (Zebra Programmin
 
 ![Example UPS Label](testdata/ups/import_control_rendered.png)
 
-## 🔒 100% Private - No Data Ever Leaves Your Control
+## Privacy
 
-Unlike cloud-based label services, go-zpl processes everything locally:
-
-- **Library**: Runs entirely in your application - no external API calls
-- **CLI Tool**: Processes files on your machine - nothing sent to servers
-- **[Web Demo](https://stirlingmarketinggroup.github.io/go-zpl/)**: Powered by WebAssembly, runs 100% in your browser
-
-**Your label data stays yours.** Customer names, addresses, tracking numbers, and business data never touch our servers because there are no servers. This makes go-zpl ideal for:
-
-- Labels containing PII (personally identifiable information)
-- Shipping labels with customer addresses
-- Healthcare/HIPAA environments
-- Air-gapped or offline systems
-- Compliance-sensitive industries
+Everything runs locally - there are no servers or external API calls. The library runs in your application, the CLI processes files on your machine, and the [web demo](https://stirlingmarketinggroup.github.io/go-zpl/) uses WebAssembly to render entirely in-browser.
 
 ## Features
 

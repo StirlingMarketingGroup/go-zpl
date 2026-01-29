@@ -269,10 +269,6 @@ END:VCARD^FS
 ^FO300,290^FDacme.dev^FS
 ^FO300,325^FDgithub.com/janesmith^FS
 
-^FX Scan prompt (below QR code)
-^CF0,16
-^FO70,500^FDScan to save contact^FS
-
 ^XZ`
     },
 

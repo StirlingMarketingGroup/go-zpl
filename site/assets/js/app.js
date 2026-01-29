@@ -323,49 +323,39 @@ END:VCARD^FS
 
     barcodes: {
         width: 4,
-        height: 3,
+        height: 4,
         zpl: `^XA
 
-^FX Barcode Sampler
+^FX Barcode Sampler - shows supported barcode types
 ^CF0,35
 ^FO250,20^FDBarcode Sampler^FS
 
 ^FX Code 128
 ^CF0,20
 ^FO50,70^FDCode 128:^FS
-^BY2,2,60
+^BY2,2,80
 ^FO50,95^BC^FDCODE128-TEST^FS
 
 ^FX QR Code
-^FO450,70^FDQR Code:^FS
-^FO450,95^BQN,2,4^FDMM,Ahttps://go-zpl.dev^FS
-
-^FX Code 39
-^FO50,200^FDCode 39:^FS
-^BY2,2,60
-^FO50,225^B3N,N,60,Y,N^FDCODE39^FS
+^FO500,70^FDQR Code:^FS
+^FO500,95^BQN,2,4^FDMM,Ahttps://go-zpl.dev^FS
 
 ^FX DataMatrix
-^FO450,200^FDDataMatrix:^FS
-^FO450,225^BXN,5,200^FDDataMatrix Test 123^FS
-
-^FX Interleaved 2 of 5
-^FO50,330^FDInterleaved 2 of 5:^FS
-^BY2,2,60
-^FO50,355^B2N,60,Y,N,N^FD12345678^FS
+^FO50,250^FDDataMatrix:^FS
+^FO50,275^BXN,6,200^FDDataMatrix 123^FS
 
 ^FX PDF417
-^FO450,330^FDPDF417:^FS
-^FO450,355^B7N,5,3,2,5,N^FDPDF417 Demo^FS
+^FO300,250^FDPDF417:^FS
+^FO300,275^B7N,4,2,3,3,N^FDPDF417 Demo^FS
 
-^FX UPC-A
-^FO50,460^FDUPC-A:^FS
-^BY2,2,60
-^FO50,485^BUN,60,Y,N^FD01234567890^FS
+^FX MaxiCode
+^FO580,250^FDMaxiCode:^FS
+^FO550,275^BD2^FD[)>_1E01_1D961Z00000001_1DUPSN_1D12345_1E_04^FS
 
-^FX MaxiCode (if supported)
-^FO450,460^FDMaxiCode:^FS
-^FO450,485^BD2^FD[)>_1E01_1D961Z00000001_1DUPSN_1D12345_1E_04^FS
+^FX Note about other barcodes
+^CF0,16
+^FO50,520^FDSupported: Code 128, QR, DataMatrix, PDF417, MaxiCode^FS
+^FO50,545^FDComing soon: Code 39, UPC-A, EAN-13, Interleaved 2of5^FS
 
 ^XZ`
     },

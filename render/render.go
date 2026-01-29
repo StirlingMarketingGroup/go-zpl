@@ -106,9 +106,44 @@ func (r *Renderer) RenderPNG(label *zpl.Label, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// Use BestSpeed compression - much faster with minimal size increase for label images
+
+	// Convert to paletted image (1-bit black/white)
+	// This is much faster to encode than RGBA since it's only 2 colors
+	rgbaImg := img.(*image.RGBA)
+	bounds := rgbaImg.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	// Create a 2-color palette (white=0, black=1)
+	palette := color.Palette{
+		color.RGBA{255, 255, 255, 255}, // index 0: white
+		color.RGBA{0, 0, 0, 255},       // index 1: black
+	}
+	palettedImg := image.NewPaletted(bounds, palette)
+
+	// Fast conversion: operate directly on pixel arrays
+	// RGBA is 4 bytes per pixel, Paletted is 1 byte per pixel
+	rgbaPix := rgbaImg.Pix
+	palPix := palettedImg.Pix
+	rgbaStride := rgbaImg.Stride
+	palStride := palettedImg.Stride
+
+	for y := 0; y < height; y++ {
+		rgbaRow := y * rgbaStride
+		palRow := y * palStride
+		for x := 0; x < width; x++ {
+			// Check if pixel is black (R=0)
+			// RGBA layout: R, G, B, A for each pixel
+			if rgbaPix[rgbaRow+x*4] == 0 {
+				palPix[palRow+x] = 1 // black
+			}
+			// else leave as 0 (white) - already initialized to zero
+		}
+	}
+
+	// Use BestSpeed compression
 	encoder := &png.Encoder{CompressionLevel: png.BestSpeed}
-	return encoder.Encode(w, img)
+	return encoder.Encode(w, palettedImg)
 }
 
 // canvas manages the rendering state and image buffer.

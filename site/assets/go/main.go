@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
-	"image/png"
 	"syscall/js"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
@@ -40,19 +39,16 @@ func renderZPL(this js.Value, args []js.Value) interface{} {
 	}
 
 	renderer := render.New(dpi).WithSize(width, height).WithIgnoreLabelHome(ignoreLabelHome)
-	img, err := renderer.Render(label)
-	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
-	}
 
+	// Use RenderPNG for optimized paletted encoding (faster, smaller files)
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	if err := renderer.RenderPNG(label, &buf); err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
 
 	return map[string]interface{}{
 		"image":  base64.StdEncoding.EncodeToString(buf.Bytes()),
-		"width":  img.Bounds().Dx(),
-		"height": img.Bounds().Dy(),
+		"width":  width,
+		"height": height,
 	}
 }

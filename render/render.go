@@ -132,9 +132,10 @@ func (r *Renderer) RenderPNG(label *zpl.Label, w io.Writer) error {
 		rgbaRow := y * rgbaStride
 		palRow := y * palStride
 		for x := 0; x < width; x++ {
-			// Check if pixel is black (R=0)
+			// Check if pixel is dark enough to be black
 			// RGBA layout: R, G, B, A for each pixel
-			if rgbaPix[rgbaRow+x*4] == 0 {
+			// Use threshold of 128 to capture anti-aliased text (gray pixels from font smoothing)
+			if rgbaPix[rgbaRow+x*4] < 128 {
 				palPix[palRow+x] = 1 // black
 			}
 			// else leave as 0 (white) - already initialized to zero

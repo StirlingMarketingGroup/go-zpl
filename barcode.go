@@ -393,6 +393,78 @@ func (b *BarcodePDF417) WriteTo(w io.Writer) (int64, error) {
 	return int64(n), err
 }
 
+// BarcodeAztec represents a ^BO command for Aztec barcodes.
+type BarcodeAztec struct {
+	Orientation     Orientation
+	Magnification   int  // 1-10, size of each module
+	ECICEnabled     bool // Extended Channel Interpretation
+	ECINumber       int  // ECI code page number
+	ErrorCorrection int  // Error correction percentage (0=default, 1-99=%, 101-104=layers, 201-232=size, 300=compact)
+	MenuSymbol      bool // Menu symbol (for mobile device linking)
+	SymbolCount     int  // Number of symbols for structured append
+	SymbolID        string
+	Data            string
+}
+
+// NewBarcodeAztec creates a new Aztec barcode command.
+func NewBarcodeAztec(data string, magnification int) *BarcodeAztec {
+	return &BarcodeAztec{
+		Orientation:     OrientationNormal,
+		Magnification:   magnification,
+		ECICEnabled:     false,
+		ECINumber:       0,
+		ErrorCorrection: 0, // Default
+		MenuSymbol:      false,
+		SymbolCount:     1,
+		SymbolID:        "",
+		Data:            data,
+	}
+}
+
+// WithOrientation sets the Aztec barcode orientation.
+func (b *BarcodeAztec) WithOrientation(o Orientation) *BarcodeAztec {
+	b.Orientation = o
+	return b
+}
+
+// WithMagnification sets the magnification (module size).
+func (b *BarcodeAztec) WithMagnification(m int) *BarcodeAztec {
+	if m < 1 {
+		m = 1
+	}
+	if m > 10 {
+		m = 10
+	}
+	b.Magnification = m
+	return b
+}
+
+// WithErrorCorrection sets the error correction level.
+func (b *BarcodeAztec) WithErrorCorrection(ec int) *BarcodeAztec {
+	b.ErrorCorrection = ec
+	return b
+}
+
+// ZPL returns the ZPL representation.
+func (b *BarcodeAztec) ZPL() string {
+	ecic := 'N'
+	if b.ECICEnabled {
+		ecic = 'Y'
+	}
+	menu := 'N'
+	if b.MenuSymbol {
+		menu = 'Y'
+	}
+	return fmt.Sprintf("^BO%c,%d,%c,%d,%c,%d,%s^FD%s^FS",
+		b.Orientation, b.Magnification, ecic, b.ErrorCorrection, menu, b.SymbolCount, b.SymbolID, b.Data)
+}
+
+// WriteTo writes the ZPL to the writer.
+func (b *BarcodeAztec) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, b.ZPL())
+	return int64(n), err
+}
+
 // BarcodeEAN13 represents a ^BE command for EAN-13 barcodes.
 type BarcodeEAN13 struct {
 	Orientation         Orientation

@@ -133,6 +133,8 @@ func (p *parser) parseCaretCommand() error {
 		return p.parseBarcodeDataMatrix()
 	case "B7":
 		return p.parseBarcodePDF417()
+	case "BO":
+		return p.parseBarcodeAztec()
 	// Commands we recognize but ignore for now
 	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "B3":
 		p.skipToNextCommand()
@@ -593,6 +595,63 @@ func (p *parser) parseBarcodePDF417() error {
 	if rows > 0 {
 		bc.WithRows(rows)
 	}
+
+	p.label.Add(bc)
+	return nil
+}
+
+func (p *parser) parseBarcodeAztec() error {
+	// ^BO command for Aztec barcode
+	// Format: ^BOa,b,c,d,e,f,g where:
+	// a=orientation, b=magnification (1-10), c=extended channel (Y/N),
+	// d=error correction/size, e=menu symbol (Y/N), f=symbols for append, g=ID
+	params := p.readParams()
+
+	orient := OrientationNormal
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	magnification := parseInt(getParam(params, 1), 2)   // Default magnification 2
+	ecic := getParam(params, 2) == "Y"                  // Extended channel interpretation
+	errorCorrection := parseInt(getParam(params, 3), 0) // Default auto
+	menuSymbol := getParam(params, 4) == "Y"            // Menu symbol
+	symbolCount := parseInt(getParam(params, 5), 1)     // Structured append count
+	symbolID := getParam(params, 6)                     // Structured append ID
+
+	var data string
+
+	// Look for ^FD or ^FV
+	p.skipWhitespace()
+	if p.pos < len(p.input) && p.input[p.pos] == '^' {
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+		if cmd == "FD" || cmd == "FV" {
+			var rawData strings.Builder
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData.WriteByte(p.input[p.pos])
+				p.pos++
+			}
+			data = rawData.String()
+		} else {
+			p.pos = save
+		}
+	}
+
+	bc := NewBarcodeAztec(data, magnification).
+		WithOrientation(orient).
+		WithErrorCorrection(errorCorrection)
+	bc.ECICEnabled = ecic
+	bc.MenuSymbol = menuSymbol
+	bc.SymbolCount = symbolCount
+	bc.SymbolID = symbolID
 
 	p.label.Add(bc)
 	return nil

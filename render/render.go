@@ -301,6 +301,9 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 	case *zpl.BarcodePDF417:
 		c.drawPDF417(v)
 
+	case *zpl.BarcodeAztec:
+		c.drawAztec(v)
+
 	// Ignore commands we don't render
 	case *zpl.Comment:
 		// Comments are ignored

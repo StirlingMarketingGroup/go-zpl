@@ -190,7 +190,7 @@ Comprehensive task list for the go-zpl library.
 ### Other 2D Barcodes
 
 - [x] `^BD` - MaxiCode (using ingridhq/maxicode library)
-- [ ] `^BO` - Aztec Code
+- [x] `^BO` - Aztec Code (using boombuler/barcode library)
 - [ ] `^BF` - MicroPDF417
 
 ---

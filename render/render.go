@@ -71,7 +71,7 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 		height = label.Height()
 	}
 	if height == 0 {
-		height = 1240 // Default ~6-inch label at 203 DPI with margin for font descent
+		height = 1218 // Default 6-inch label at 203 DPI
 	}
 
 	canvas, err := newCanvas(width, height)

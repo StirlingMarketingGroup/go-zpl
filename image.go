@@ -147,8 +147,8 @@ func (c *ImageConverter) ConvertZ64(img image.Image) *GraphicField {
 	// Compress with zlib
 	var compressed bytes.Buffer
 	zw := zlib.NewWriter(&compressed)
-	zw.Write(binaryData)
-	zw.Close()
+	_, _ = zw.Write(binaryData) // bytes.Buffer never errors
+	_ = zw.Close()              // Close flushes but can't error on bytes.Buffer
 
 	// Encode as base64
 	b64Data := base64.StdEncoding.EncodeToString(compressed.Bytes())

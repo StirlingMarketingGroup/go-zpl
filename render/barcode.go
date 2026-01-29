@@ -234,7 +234,7 @@ func (c *canvas) drawBarcode128(bc *zpl.BarcodeCode128, moduleWidth int) {
 		}
 
 		// Use a font size proportional to barcode width (approx 1/4 of barcode height, capped)
-		textHeight := max(height / 6, 18)
+		textHeight := max(height/6, 18)
 		if textHeight > 40 {
 			textHeight = 40
 		}

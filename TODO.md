@@ -247,7 +247,7 @@ Comprehensive task list for the go-zpl library.
 - [ ] Text alignment in field blocks
 - [x] Reverse print (white on black) - works for graphics; text reverse still needs black background fill
 - [x] CJK character support via Noto Sans CJK fallback
-- [ ] CJK fallback for rotated text orientations (R, I, B)
+- [x] CJK fallback for rotated text orientations (R, I, B)
 
 ### Graphics Rendering
 
@@ -269,7 +269,7 @@ Comprehensive task list for the go-zpl library.
 ### Output Formats
 
 - [x] PNG export
-- [ ] JPEG export
+- [x] JPEG export
 - [ ] PDF export (optional)
 - [ ] Raw bitmap for printing
 

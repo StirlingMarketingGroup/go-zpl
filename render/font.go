@@ -213,11 +213,11 @@ func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Fo
 	case zpl.OrientationNormal:
 		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse)
 	case zpl.OrientationRotated90:
-		fm.drawTextRotated90(img, face, text, x, y, scaleX, reverse)
+		fm.drawTextRotated90(img, face, text, x, y, height, scaleX, reverse)
 	case zpl.OrientationRotated180:
-		fm.drawTextRotated180(img, face, text, x, y, scaleX, reverse)
+		fm.drawTextRotated180(img, face, text, x, y, height, scaleX, reverse)
 	case zpl.OrientationRotated270:
-		fm.drawTextRotated270(img, face, text, x, y, scaleX, reverse)
+		fm.drawTextRotated270(img, face, text, x, y, height, scaleX, reverse)
 	default:
 		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse)
 	}
@@ -331,7 +331,10 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 }
 
 // drawTextRotated90 draws text rotated 90 degrees clockwise.
-func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
+func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool) {
+	// Get CJK fallback face
+	cjkFace, _ := fm.getCJKFace(height)
+
 	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
 	maxAscent := metrics.Ascent
@@ -339,7 +342,11 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 	totalWidth := fixed.Int26_6(0)
 
 	for _, r := range text {
-		bounds, adv, ok := face.GlyphBounds(r)
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		bounds, adv, ok := currentFace.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
 			if -bounds.Min.Y > maxAscent {
@@ -378,7 +385,16 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
-	drawer.DrawString(text)
+
+	// Draw each character, using CJK fallback when needed
+	for _, r := range text {
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		drawer.Face = currentFace
+		drawer.DrawString(string(r))
+	}
 
 	// Scale horizontally if needed
 	scaled := tmpImg
@@ -404,7 +420,10 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 }
 
 // drawTextRotated180 draws text rotated 180 degrees.
-func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
+func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool) {
+	// Get CJK fallback face
+	cjkFace, _ := fm.getCJKFace(height)
+
 	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
 	maxAscent := metrics.Ascent
@@ -412,7 +431,11 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 	totalWidth := fixed.Int26_6(0)
 
 	for _, r := range text {
-		bounds, adv, ok := face.GlyphBounds(r)
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		bounds, adv, ok := currentFace.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
 			if -bounds.Min.Y > maxAscent {
@@ -451,7 +474,16 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
-	drawer.DrawString(text)
+
+	// Draw each character, using CJK fallback when needed
+	for _, r := range text {
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		drawer.Face = currentFace
+		drawer.DrawString(string(r))
+	}
 
 	// Scale horizontally if needed
 	scaled := tmpImg
@@ -476,7 +508,10 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 }
 
 // drawTextRotated270 draws text rotated 270 degrees clockwise (90 counter-clockwise).
-func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
+func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool) {
+	// Get CJK fallback face
+	cjkFace, _ := fm.getCJKFace(height)
+
 	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
 	maxAscent := metrics.Ascent
@@ -484,7 +519,11 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 	totalWidth := fixed.Int26_6(0)
 
 	for _, r := range text {
-		bounds, adv, ok := face.GlyphBounds(r)
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		bounds, adv, ok := currentFace.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
 			if -bounds.Min.Y > maxAscent {
@@ -523,7 +562,16 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
-	drawer.DrawString(text)
+
+	// Draw each character, using CJK fallback when needed
+	for _, r := range text {
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		drawer.Face = currentFace
+		drawer.DrawString(string(r))
+	}
 
 	// Scale horizontally if needed
 	scaled := tmpImg

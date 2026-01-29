@@ -93,7 +93,10 @@ func (p *parser) parseCaretCommand() error {
 		// Field separator - nothing to do
 	case "FR":
 		p.label.Add(NewFieldReverse())
-	case "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9":
+	case "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9",
+		"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
+		"AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
+		"AU", "AV", "AW", "AX", "AY", "AZ":
 		return p.parseScalableFont(cmd)
 	case "CF":
 		return p.parseChangeFont()
@@ -289,10 +292,10 @@ func (p *parser) parseFieldData() error {
 }
 
 func (p *parser) parseScalableFont(cmd string) error {
-	// Get font number from command (A0 = Font0, etc)
-	fontNum := 0
+	// Get font identifier from command (A0 = Font0, AD = FontD, etc)
+	fontChar := '0'
 	if len(cmd) > 1 {
-		fontNum = int(cmd[1] - '0')
+		fontChar = rune(cmd[1])
 	}
 
 	params := p.readParams()
@@ -300,10 +303,45 @@ func (p *parser) parseScalableFont(cmd string) error {
 	if getParam(params, 0) != "" {
 		orient = Orientation(getParam(params, 0)[0])
 	}
-	height := parseInt(getParam(params, 1), 30)
-	width := parseInt(getParam(params, 2), 0)
 
-	font := Font(rune('0' + fontNum))
+	// Default sizes depend on font type
+	// Bitmap fonts (A-Z) have specific default sizes
+	defaultHeight := 30
+	defaultWidth := 0
+	if fontChar >= 'A' && fontChar <= 'Z' {
+		// Bitmap font defaults (approximate Zebra standard sizes)
+		switch fontChar {
+		case 'A':
+			defaultHeight, defaultWidth = 9, 5
+		case 'B':
+			defaultHeight, defaultWidth = 11, 7
+		case 'C', 'D':
+			defaultHeight, defaultWidth = 18, 10
+		case 'E':
+			defaultHeight, defaultWidth = 28, 15
+		case 'F':
+			defaultHeight, defaultWidth = 26, 13
+		case 'G':
+			defaultHeight, defaultWidth = 60, 40
+		case 'H':
+			defaultHeight, defaultWidth = 21, 13
+		default:
+			defaultHeight, defaultWidth = 18, 10
+		}
+	}
+
+	height := parseInt(getParam(params, 1), defaultHeight)
+	width := parseInt(getParam(params, 2), defaultWidth)
+
+	// If height or width is 0, use defaults
+	if height == 0 {
+		height = defaultHeight
+	}
+	if width == 0 {
+		width = defaultWidth
+	}
+
+	font := Font(fontChar)
 	p.label.Add(NewScalableFont(font, height, width).WithOrientation(orient))
 	return nil
 }

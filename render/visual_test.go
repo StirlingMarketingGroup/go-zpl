@@ -13,11 +13,13 @@ import (
 
 // visualTestCase defines a visual regression test case.
 type visualTestCase struct {
-	Name   string
-	Dir    string // Directory under testdata/visual/
-	Width  int    // Label width in inches
-	Height int    // Label height in inches
-	DPI    zpl.DPI
+	Name       string
+	Dir        string // Directory under testdata/visual/
+	Width      int    // Label width in inches (or dots if WidthDots is set)
+	Height     int    // Label height in inches (or dots if HeightDots is set)
+	WidthDots  int    // Label width in dots (overrides Width*DPI if set)
+	HeightDots int    // Label height in dots (overrides Height*DPI if set)
+	DPI        zpl.DPI
 }
 
 var visualTestCases = []visualTestCase{
@@ -34,6 +36,13 @@ var visualTestCases = []visualTestCase{
 		Width:  4,
 		Height: 6,
 		DPI:    zpl.DPI203,
+	},
+	{
+		Name:       "FedEx Ground",
+		Dir:        "fedex_ground",
+		WidthDots:  800,  // From ZPL ^PW800
+		HeightDots: 1200, // Standard FedEx label height
+		DPI:        zpl.DPI203,
 	},
 }
 
@@ -61,8 +70,14 @@ func TestVisualRegression(t *testing.T) {
 			}
 
 			// Calculate dimensions in dots
-			widthDots := tc.Width * int(tc.DPI)
-			heightDots := tc.Height * int(tc.DPI)
+			widthDots := tc.WidthDots
+			if widthDots == 0 {
+				widthDots = tc.Width * int(tc.DPI)
+			}
+			heightDots := tc.HeightDots
+			if heightDots == 0 {
+				heightDots = tc.Height * int(tc.DPI)
+			}
 
 			// Render with our renderer
 			renderer := New(tc.DPI).WithSize(widthDots, heightDots)

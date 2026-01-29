@@ -10,8 +10,14 @@ import (
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
 )
 
-// drawPDF417 renders a PDF417 barcode at the current position.
+// drawPDF417 renders a PDF417 barcode at the current position using the canvas barcode module width.
 func (c *canvas) drawPDF417(bc *zpl.BarcodePDF417) {
+	c.drawPDF417WithModuleWidth(bc, c.barcodeModuleWidth)
+}
+
+// drawPDF417WithModuleWidth renders a PDF417 barcode at the current position.
+// moduleWidth comes from ^BY command.
+func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth int) {
 	if bc.Data == "" {
 		return
 	}
@@ -25,28 +31,26 @@ func (c *canvas) drawPDF417(bc *zpl.BarcodePDF417) {
 	}
 
 	// Calculate target size
-	// ZPL Height parameter is the height of the barcode in dots
-	// PDF417 has a specific aspect ratio based on columns and rows
+	// The PDF417 library outputs 1 pixel per module
 	bounds := code.Bounds()
 	origWidth := bounds.Dx()
 	origHeight := bounds.Dy()
 
-	// Target height from ZPL parameter
-	targetHeight := bc.Height
-	if targetHeight < 1 {
-		targetHeight = 50 // Default height
+	// Module width from ^BY command (default 2)
+	if moduleWidth < 1 {
+		moduleWidth = 2
 	}
 
-	// Scale to match target height while preserving aspect ratio
-	scale := float64(targetHeight) / float64(origHeight)
-	targetWidth := int(float64(origWidth) * scale)
+	// Row height from ZPL ^B7 parameter (dots per row)
+	// PDF417 row height is typically moduleWidth * aspect ratio (usually 3)
+	rowHeight := bc.Height
+	if rowHeight < 1 {
+		rowHeight = moduleWidth * 3 // Default aspect ratio
+	}
 
-	if targetWidth < 1 {
-		targetWidth = origWidth
-	}
-	if targetHeight < 1 {
-		targetHeight = origHeight
-	}
+	// Calculate target dimensions
+	targetWidth := origWidth * moduleWidth
+	targetHeight := origHeight * rowHeight
 
 	// Scale the barcode
 	code, err = barcode.Scale(code, targetWidth, targetHeight)

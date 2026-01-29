@@ -192,6 +192,11 @@ type canvas struct {
 	// Barcode defaults (set by ^BY)
 	barcodeModuleWidth int
 	barcodeHeight      int
+
+	// Pending barcode (waiting for ^FD to provide data)
+	// In ZPL, barcode commands like ^BC set up the barcode parameters,
+	// then the following ^FD provides the data
+	pendingBarcode interface{}
 }
 
 // Shared font manager (parsed once, reused across renders)
@@ -259,7 +264,12 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		c.fontWidth = v.Width
 
 	case *zpl.FieldData:
-		c.drawText(v.Data)
+		// Check if there's a pending barcode waiting for data
+		if c.pendingBarcode != nil {
+			c.drawPendingBarcode(v.Data)
+		} else {
+			c.drawText(v.Data)
+		}
 
 	case *zpl.FieldReverse:
 		c.fieldReverse = true
@@ -284,7 +294,12 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		c.setBarcodeDefault(v)
 
 	case *zpl.BarcodeCode128:
-		c.drawBarcode128(v, c.barcodeModuleWidth)
+		// If barcode has data, draw immediately; otherwise wait for ^FD
+		if v.Data != "" {
+			c.drawBarcode128(v, c.barcodeModuleWidth)
+		} else {
+			c.pendingBarcode = v
+		}
 
 	case *zpl.GraphicField:
 		c.drawGraphicField(v)
@@ -299,7 +314,12 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		c.drawDataMatrix(v)
 
 	case *zpl.BarcodePDF417:
-		c.drawPDF417(v)
+		// If barcode has data, draw immediately; otherwise wait for ^FD
+		if v.Data != "" {
+			c.drawPDF417(v)
+		} else {
+			c.pendingBarcode = v
+		}
 
 	case *zpl.BarcodeAztec:
 		c.drawAztec(v)
@@ -316,6 +336,25 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 	}
 
 	return nil
+}
+
+// drawPendingBarcode renders a pending barcode with the given data.
+func (c *canvas) drawPendingBarcode(data string) {
+	if c.pendingBarcode == nil {
+		return
+	}
+
+	switch bc := c.pendingBarcode.(type) {
+	case *zpl.BarcodeCode128:
+		bc.Data = data
+		c.drawBarcode128(bc, c.barcodeModuleWidth)
+	case *zpl.BarcodePDF417:
+		bc.Data = data
+		c.drawPDF417(bc)
+	}
+
+	// Clear pending barcode
+	c.pendingBarcode = nil
 }
 
 // drawText renders text at the current position using the current font settings.

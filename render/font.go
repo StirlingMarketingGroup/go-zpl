@@ -5,11 +5,14 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 	"sync"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+
+	imgdraw "golang.org/x/image/draw"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
 )
@@ -165,6 +168,27 @@ func hasGlyph(face font.Face, r rune) bool {
 	return ok
 }
 
+// scaleImageHorizontally scales an image horizontally using bilinear interpolation.
+func scaleImageHorizontally(src *image.RGBA, scaleX float64) *image.RGBA {
+	if scaleX == 1.0 {
+		return src
+	}
+	srcBounds := src.Bounds()
+	destWidth := int(math.Round(float64(srcBounds.Dx()) * scaleX))
+	destHeight := srcBounds.Dy()
+	if destWidth <= 0 {
+		destWidth = 1
+	}
+
+	dest := image.NewRGBA(image.Rect(0, 0, destWidth, destHeight))
+
+	// Use affine transformation for horizontal scaling
+	// The transform maps destination coords to source coords, so we use 1/scaleX
+	imgdraw.ApproxBiLinear.Scale(dest, dest.Bounds(), src, srcBounds, imgdraw.Over, nil)
+
+	return dest
+}
+
 // drawText renders text to the image at the given position.
 func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Font, height, width int, orient zpl.Orientation, reverse bool) {
 	if text == "" {
@@ -208,44 +232,91 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 	// We need to add the ascent to get the baseline position
 	metrics := face.Metrics()
 	ascent := metrics.Ascent.Round()
+	textHeight := (metrics.Ascent + metrics.Descent).Round()
 
-	// Adjust y to be at baseline (ZPL y is top of text)
-	baselineY := y + ascent
+	// Calculate total width at natural scale
+	totalWidth := fixed.Int26_6(0)
+	for _, r := range text {
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		adv, ok := currentFace.GlyphAdvance(r)
+		if ok {
+			totalWidth += adv
+		}
+	}
+	naturalWidth := totalWidth.Round()
 
-	// Draw each character with horizontal scaling
+	if naturalWidth == 0 || textHeight == 0 {
+		return
+	}
+
 	col := color.RGBA{0, 0, 0, 255}
 	if reverse {
 		col = color.RGBA{255, 255, 255, 255}
 	}
 
-	drawer := &font.Drawer{
-		Dst:  img,
-		Src:  image.NewUniform(col),
-		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(x), Y: fixed.I(baselineY)},
-	}
+	// If scaleX != 1.0, render to temp image at natural width, then scale
+	if scaleX != 1.0 {
+		// Create temp image at natural width
+		tmpImg := image.NewRGBA(image.Rect(0, 0, naturalWidth, textHeight))
+		bgCol := color.RGBA{255, 255, 255, 255}
+		if reverse {
+			bgCol = color.RGBA{0, 0, 0, 255}
+		}
+		draw.Draw(tmpImg, tmpImg.Bounds(), image.NewUniform(bgCol), image.Point{}, draw.Src)
 
-	// Draw each character, using fallback for CJK
-	for _, r := range text {
-		currentFace := face
-		// Check if primary font has this glyph, fall back to CJK if not
-		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
-			currentFace = cjkFace
+		drawer := &font.Drawer{
+			Dst:  tmpImg,
+			Src:  image.NewUniform(col),
+			Face: face,
+			Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 		}
 
-		adv, ok := currentFace.GlyphAdvance(r)
-		if !ok {
-			continue
+		// Draw each character at natural width
+		for _, r := range text {
+			currentFace := face
+			if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+				currentFace = cjkFace
+			}
+			drawer.Face = currentFace
+			drawer.DrawString(string(r))
 		}
 
-		// Draw the glyph with appropriate face
-		drawer.Face = currentFace
-		drawer.DrawString(string(r))
+		// Scale horizontally
+		scaled := scaleImageHorizontally(tmpImg, scaleX)
 
-		// Adjust position for next character based on scale
-		if scaleX != 1.0 {
-			scaledAdv := fixed.Int26_6(float64(adv) * scaleX)
-			drawer.Dot.X = drawer.Dot.X - adv + scaledAdv
+		// Copy to destination, only copying non-background pixels
+		for ty := 0; ty < scaled.Bounds().Dy(); ty++ {
+			for tx := 0; tx < scaled.Bounds().Dx(); tx++ {
+				c := scaled.RGBAAt(tx, ty)
+				if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
+					destX := x + tx
+					destY := y + ty
+					if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
+						img.Set(destX, destY, c)
+					}
+				}
+			}
+		}
+	} else {
+		// No scaling needed, draw directly
+		baselineY := y + ascent
+		drawer := &font.Drawer{
+			Dst:  img,
+			Src:  image.NewUniform(col),
+			Face: face,
+			Dot:  fixed.Point26_6{X: fixed.I(x), Y: fixed.I(baselineY)},
+		}
+
+		for _, r := range text {
+			currentFace := face
+			if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+				currentFace = cjkFace
+			}
+			drawer.Face = currentFace
+			drawer.DrawString(string(r))
 		}
 	}
 }
@@ -263,22 +334,20 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 			totalWidth += adv
 		}
 	}
-	scaledWidth := int(float64(totalWidth.Round()) * scaleX)
+	naturalWidth := totalWidth.Round()
 
-	// Create temporary image for unrotated text
-	if scaledWidth == 0 || textHeight == 0 {
+	if naturalWidth == 0 || textHeight == 0 {
 		return
 	}
 
-	tmpImg := image.NewRGBA(image.Rect(0, 0, scaledWidth, textHeight))
-	// Fill with transparent (or white for non-reverse)
+	// Create temporary image at NATURAL width (no scaling yet)
+	tmpImg := image.NewRGBA(image.Rect(0, 0, naturalWidth, textHeight))
 	bgCol := color.RGBA{255, 255, 255, 255}
 	if reverse {
 		bgCol = color.RGBA{0, 0, 0, 255}
 	}
 	draw.Draw(tmpImg, tmpImg.Bounds(), image.NewUniform(bgCol), image.Point{}, draw.Src)
 
-	// Draw text to temp image
 	col := color.RGBA{0, 0, 0, 255}
 	if reverse {
 		col = color.RGBA{255, 255, 255, 255}
@@ -290,26 +359,20 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
 	}
+	drawer.DrawString(text)
 
-	if scaleX == 1.0 {
-		drawer.DrawString(text)
-	} else {
-		for _, r := range text {
-			adv, ok := face.GlyphAdvance(r)
-			if !ok {
-				continue
-			}
-			drawer.DrawString(string(r))
-			scaledAdv := fixed.Int26_6(float64(adv) * scaleX)
-			drawer.Dot.X = drawer.Dot.X - adv + scaledAdv
-		}
+	// Scale horizontally if needed
+	scaled := tmpImg
+	if scaleX != 1.0 {
+		scaled = scaleImageHorizontally(tmpImg, scaleX)
 	}
+	scaledWidth := scaled.Bounds().Dx()
 
 	// Rotate 90 degrees clockwise and copy to destination
 	// (x, y) -> (y, width - 1 - x)
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
-			c := tmpImg.RGBAAt(tx, ty)
+			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
 				destX := x + ty
 				destY := y + scaledWidth - 1 - tx
@@ -334,13 +397,14 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 			totalWidth += adv
 		}
 	}
-	scaledWidth := int(float64(totalWidth.Round()) * scaleX)
+	naturalWidth := totalWidth.Round()
 
-	if scaledWidth == 0 || textHeight == 0 {
+	if naturalWidth == 0 || textHeight == 0 {
 		return
 	}
 
-	tmpImg := image.NewRGBA(image.Rect(0, 0, scaledWidth, textHeight))
+	// Create temporary image at NATURAL width
+	tmpImg := image.NewRGBA(image.Rect(0, 0, naturalWidth, textHeight))
 	bgCol := color.RGBA{255, 255, 255, 255}
 	if reverse {
 		bgCol = color.RGBA{0, 0, 0, 255}
@@ -358,25 +422,19 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
 	}
+	drawer.DrawString(text)
 
-	if scaleX == 1.0 {
-		drawer.DrawString(text)
-	} else {
-		for _, r := range text {
-			adv, ok := face.GlyphAdvance(r)
-			if !ok {
-				continue
-			}
-			drawer.DrawString(string(r))
-			scaledAdv := fixed.Int26_6(float64(adv) * scaleX)
-			drawer.Dot.X = drawer.Dot.X - adv + scaledAdv
-		}
+	// Scale horizontally if needed
+	scaled := tmpImg
+	if scaleX != 1.0 {
+		scaled = scaleImageHorizontally(tmpImg, scaleX)
 	}
+	scaledWidth := scaled.Bounds().Dx()
 
 	// Rotate 180 degrees: (x, y) -> (width - 1 - x, height - 1 - y)
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
-			c := tmpImg.RGBAAt(tx, ty)
+			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
 				destX := x + scaledWidth - 1 - tx
 				destY := y + textHeight - 1 - ty
@@ -401,13 +459,14 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 			totalWidth += adv
 		}
 	}
-	scaledWidth := int(float64(totalWidth.Round()) * scaleX)
+	naturalWidth := totalWidth.Round()
 
-	if scaledWidth == 0 || textHeight == 0 {
+	if naturalWidth == 0 || textHeight == 0 {
 		return
 	}
 
-	tmpImg := image.NewRGBA(image.Rect(0, 0, scaledWidth, textHeight))
+	// Create temporary image at NATURAL width
+	tmpImg := image.NewRGBA(image.Rect(0, 0, naturalWidth, textHeight))
 	bgCol := color.RGBA{255, 255, 255, 255}
 	if reverse {
 		bgCol = color.RGBA{0, 0, 0, 255}
@@ -425,25 +484,19 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
 	}
+	drawer.DrawString(text)
 
-	if scaleX == 1.0 {
-		drawer.DrawString(text)
-	} else {
-		for _, r := range text {
-			adv, ok := face.GlyphAdvance(r)
-			if !ok {
-				continue
-			}
-			drawer.DrawString(string(r))
-			scaledAdv := fixed.Int26_6(float64(adv) * scaleX)
-			drawer.Dot.X = drawer.Dot.X - adv + scaledAdv
-		}
+	// Scale horizontally if needed
+	scaled := tmpImg
+	if scaleX != 1.0 {
+		scaled = scaleImageHorizontally(tmpImg, scaleX)
 	}
+	scaledWidth := scaled.Bounds().Dx()
 
 	// Rotate 270 degrees clockwise (90 counter-clockwise): (x, y) -> (height - 1 - y, x)
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
-			c := tmpImg.RGBAAt(tx, ty)
+			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
 				destX := x + textHeight - 1 - ty
 				destY := y + tx

@@ -48,7 +48,7 @@ const examples = {
 ^XZ`
     },
 
-    shipping: {
+    labelary: {
         width: 4,
         height: 6,
         zpl: `^XA

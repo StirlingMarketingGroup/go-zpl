@@ -37,11 +37,11 @@ type Code128Mode rune
 
 // Code 128 modes.
 const (
-	Code128Auto    Code128Mode = 'N' // Auto mode (printer selects best subset)
+	Code128Auto    Code128Mode = 'N' // No mode selected (defaults to Subset B)
 	Code128UCC     Code128Mode = 'U' // UCC/EAN-128 mode
-	Code128SubsetA Code128Mode = 'A' // Subset A
-	Code128SubsetB Code128Mode = 'B' // Subset B (default for auto)
-	Code128SubsetC Code128Mode = 'C' // Subset C (numeric pairs)
+	Code128SubsetA Code128Mode = 'A' // Auto mode (optimizes with Subset C for numeric runs)
+	Code128SubsetB Code128Mode = 'B' // Subset B explicitly
+	Code128SubsetC Code128Mode = 'C' // Subset C (numeric pairs only)
 	Code128SubsetD Code128Mode = 'D' // Subset D (reader programming)
 )
 

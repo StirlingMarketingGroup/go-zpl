@@ -137,12 +137,212 @@ var code128BValues = map[rune]int{
 	'x': 88, 'y': 89, 'z': 90, '{': 91, '|': 92, '}': 93, '~': 94,
 }
 
+// Code 128 Subset C values (digit pairs 00-99)
+var code128CValues = map[string]int{
+	"00": 0, "01": 1, "02": 2, "03": 3, "04": 4, "05": 5, "06": 6, "07": 7, "08": 8, "09": 9,
+	"10": 10, "11": 11, "12": 12, "13": 13, "14": 14, "15": 15, "16": 16, "17": 17, "18": 18, "19": 19,
+	"20": 20, "21": 21, "22": 22, "23": 23, "24": 24, "25": 25, "26": 26, "27": 27, "28": 28, "29": 29,
+	"30": 30, "31": 31, "32": 32, "33": 33, "34": 34, "35": 35, "36": 36, "37": 37, "38": 38, "39": 39,
+	"40": 40, "41": 41, "42": 42, "43": 43, "44": 44, "45": 45, "46": 46, "47": 47, "48": 48, "49": 49,
+	"50": 50, "51": 51, "52": 52, "53": 53, "54": 54, "55": 55, "56": 56, "57": 57, "58": 58, "59": 59,
+	"60": 60, "61": 61, "62": 62, "63": 63, "64": 64, "65": 65, "66": 66, "67": 67, "68": 68, "69": 69,
+	"70": 70, "71": 71, "72": 72, "73": 73, "74": 74, "75": 75, "76": 76, "77": 77, "78": 78, "79": 79,
+	"80": 80, "81": 81, "82": 82, "83": 83, "84": 84, "85": 85, "86": 86, "87": 87, "88": 88, "89": 89,
+	"90": 90, "91": 91, "92": 92, "93": 93, "94": 94, "95": 95, "96": 96, "97": 97, "98": 98, "99": 99,
+}
+
+// Code 128 special codes
+const (
+	code128CodeB  = 100 // Switch to Subset B
+	code128StartB = 104 // Start B
+	code128StartC = 105 // Start C
+)
+
 // encodeCode128B encodes data using Code 128 Subset B
 func encodeCode128B(data string) []int {
-	values := []int{104} // Start B
+	values := []int{code128StartB}
 
 	for _, r := range data {
 		if val, ok := code128BValues[r]; ok {
+			values = append(values, val)
+		}
+	}
+
+	// Calculate check digit
+	sum := values[0]
+	for i := 1; i < len(values); i++ {
+		sum += i * values[i]
+	}
+	checkDigit := sum % 103
+	values = append(values, checkDigit)
+
+	return values
+}
+
+// isDigit checks if a character is a digit
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
+// encodeCode128Auto encodes data using Code 128 Auto mode
+// Uses Subset C for numeric runs of 4+ digits, Subset B otherwise
+func encodeCode128Auto(data string) []int {
+	if data == "" {
+		return []int{}
+	}
+
+	// Find runs of digits
+	type segment struct {
+		start    int
+		end      int
+		isDigits bool
+	}
+
+	runes := []rune(data)
+	var segments []segment
+
+	i := 0
+	for i < len(runes) {
+		if isDigit(runes[i]) {
+			// Count consecutive digits
+			start := i
+			for i < len(runes) && isDigit(runes[i]) {
+				i++
+			}
+			segments = append(segments, segment{start: start, end: i, isDigits: true})
+		} else {
+			// Count consecutive non-digits
+			start := i
+			for i < len(runes) && !isDigit(runes[i]) {
+				i++
+			}
+			segments = append(segments, segment{start: start, end: i, isDigits: false})
+		}
+	}
+
+	// Decide which segments to encode with Subset C
+	// Use Subset C for digit runs of 4+ (because switching costs 1 symbol)
+	// Also use Subset C if we can start with digits (saves start code switching)
+	for idx := range segments {
+		if segments[idx].isDigits {
+			digitLen := segments[idx].end - segments[idx].start
+			// Use Subset C if:
+			// - At least 4 digits, OR
+			// - First segment and at least 2 digits (no switch cost for start)
+			if digitLen >= 4 || (idx == 0 && digitLen >= 2 && digitLen%2 == 0) {
+				// Keep isDigits true to use Subset C
+			} else {
+				// Convert to non-digits to use Subset B
+				segments[idx].isDigits = false
+			}
+		}
+	}
+
+	// Merge adjacent non-digit segments
+	var merged []segment
+	for _, seg := range segments {
+		if len(merged) > 0 && !merged[len(merged)-1].isDigits && !seg.isDigits {
+			merged[len(merged)-1].end = seg.end
+		} else {
+			merged = append(merged, seg)
+		}
+	}
+	segments = merged
+
+	// Build symbol values
+	var values []int
+	position := 0 // For check digit calculation
+	inSubsetC := false
+
+	// Determine starting subset
+	if len(segments) > 0 && segments[0].isDigits {
+		values = append(values, code128StartC)
+		inSubsetC = true
+	} else {
+		values = append(values, code128StartB)
+		inSubsetC = false
+	}
+	position++
+
+	for _, seg := range segments {
+		segData := runes[seg.start:seg.end]
+
+		if seg.isDigits {
+			// Switch to Subset C if needed
+			if !inSubsetC {
+				values = append(values, 99) // Code C (value 99 in Subset B switches to C)
+				position++
+				inSubsetC = true
+			}
+			// Encode digit pairs
+			// If odd number of digits, encode first digit in Subset B
+			startIdx := 0
+			if len(segData)%2 == 1 {
+				// Switch to B for single digit, then back to C
+				values = append(values, code128CodeB)
+				position++
+				if val, ok := code128BValues[segData[0]]; ok {
+					values = append(values, val)
+					position++
+				}
+				startIdx = 1
+				// Switch back to C
+				values = append(values, 99)
+				position++
+				// inSubsetC stays true since we're back in C
+			}
+			for j := startIdx; j < len(segData); j += 2 {
+				pair := string(segData[j : j+2])
+				if val, ok := code128CValues[pair]; ok {
+					values = append(values, val)
+					position++
+				}
+			}
+		} else {
+			// Switch to Subset B if needed
+			if inSubsetC {
+				values = append(values, code128CodeB)
+				position++
+				inSubsetC = false
+			}
+			// Encode each character
+			for _, r := range segData {
+				if val, ok := code128BValues[r]; ok {
+					values = append(values, val)
+					position++
+				}
+			}
+		}
+	}
+
+	// Calculate check digit
+	sum := values[0] // Start code
+	for i := 1; i < len(values); i++ {
+		sum += i * values[i]
+	}
+	checkDigit := sum % 103
+	values = append(values, checkDigit)
+
+	return values
+}
+
+// encodeCode128C encodes data using Code 128 Subset C only (numeric pairs)
+// Returns nil if data contains non-digit characters or has odd length
+func encodeCode128C(data string) []int {
+	// Validate: must be all digits with even length
+	if len(data)%2 != 0 {
+		return nil
+	}
+	for _, r := range data {
+		if !isDigit(r) {
+			return nil
+		}
+	}
+
+	values := []int{code128StartC}
+	for i := 0; i < len(data); i += 2 {
+		pair := data[i : i+2]
+		if val, ok := code128CValues[pair]; ok {
 			values = append(values, val)
 		}
 	}
@@ -164,8 +364,23 @@ func (c *canvas) drawBarcode128(bc *zpl.BarcodeCode128, moduleWidth int) {
 		return
 	}
 
-	// Encode the data
-	values := encodeCode128B(bc.Data)
+	// Select encoding based on mode
+	// Mode 'A' = Auto mode (optimize with Subset C for numeric runs)
+	// Mode 'N', 'B', or unspecified = Subset B (standard behavior)
+	// Mode 'C' = Subset C only (numeric pairs)
+	var values []int
+	switch bc.Mode {
+	case zpl.Code128SubsetA: // 'A' is actually Auto mode in ZPL
+		values = encodeCode128Auto(bc.Data)
+	case zpl.Code128SubsetC:
+		values = encodeCode128C(bc.Data)
+		if values == nil {
+			// Fall back to Subset B if data isn't valid for Subset C
+			values = encodeCode128B(bc.Data)
+		}
+	default: // Mode N, B, or anything else uses Subset B
+		values = encodeCode128B(bc.Data)
+	}
 
 	// Calculate total width for positioning
 	totalModules := 0

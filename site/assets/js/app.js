@@ -323,7 +323,7 @@ END:VCARD^FS
 
     barcodes: {
         width: 4,
-        height: 4,
+        height: 5,
         zpl: `^XA
 
 ^FX Barcode Sampler - shows supported barcode types
@@ -344,18 +344,18 @@ END:VCARD^FS
 ^FO50,250^FDDataMatrix:^FS
 ^FO50,275^BXN,6,200^FDDataMatrix 123^FS
 
-^FX PDF417
-^FO300,250^FDPDF417:^FS
-^FO300,275^B7N,40,2^FDPDF417 Demo^FS
-
 ^FX MaxiCode
-^FO580,250^FDMaxiCode:^FS
-^FO550,275^BD2^FD[)>_1E01_1D961Z00000001_1DUPSN_1D12345_1E_04^FS
+^FO450,250^FDMaxiCode:^FS
+^FO420,275^BD2^FD[)>_1E01_1D961Z00000001_1DUPSN_1D12345_1E_04^FS
+
+^FX PDF417 - on its own row since it's wide
+^FO50,480^FDPDF417:^FS
+^FO50,505^B7N,50,2^FDPDF417 Demo^FS
 
 ^FX Note about other barcodes
 ^CF0,16
-^FO50,520^FDSupported: Code 128, QR, DataMatrix, PDF417, MaxiCode^FS
-^FO50,545^FDComing soon: Code 39, UPC-A, EAN-13, Interleaved 2of5^FS
+^FO50,620^FDSupported: Code 128, QR, DataMatrix, PDF417, MaxiCode^FS
+^FO50,645^FDComing soon: Code 39, UPC-A, EAN-13, Interleaved 2of5^FS
 
 ^XZ`
     },

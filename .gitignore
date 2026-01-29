@@ -33,3 +33,6 @@ testdata/output/
 site/public/
 site/resources/
 site/.hugo_build.lock
+
+# Node
+node_modules/

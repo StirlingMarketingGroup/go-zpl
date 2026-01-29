@@ -216,21 +216,21 @@ FFFFFFFFFFFFFFFFFFFFFFFFFFFFF00C1B6C00
 ^FO50,220^GB730,3,3^FS
 
 ^FX Product barcode
-^BY3,2,100
-^FO200,260^BC^FD012345678905^FS
+^BY3,2,80
+^FO220,250^BC^FD012345678905^FS
 
 ^FX QR code for product page
-^FO50,400^BQN,2,4^FDMM,Ahttps://example.com/product/wm-2024^FS
+^FO50,380^BQN,2,3^FDMM,Ahttps://example.com/product/wm-2024^FS
 
 ^FX Product details
 ^CF0,25
-^FO220,420^FDScan for specs,^FS
-^FO220,450^FDreviews & manual^FS
+^FO180,395^FDScan for specs,^FS
+^FO180,425^FDreviews & manual^FS
 
 ^FX Bottom info
-^FO50,520^GB730,3,3^FS
+^FO50,500^GB730,3,3^FS
 ^CF0,20
-^FO50,540^FDMade in USA | 1 Year Warranty | RoHS Compliant^FS
+^FO50,520^FDMade in USA | 1 Year Warranty | RoHS Compliant^FS
 
 ^XZ`
     },

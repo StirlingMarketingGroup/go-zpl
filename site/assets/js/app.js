@@ -27,6 +27,233 @@ const defaultZPL = `^XA
 
 ^XZ`;
 
+// Example ZPL templates
+const examples = {
+    hello: `^XA
+^FO50,50
+^A0N,30,30
+^FDHello, World!^FS
+
+^FO50,100
+^BQN,2,5
+^FDMM,Ahttps://github.com/StirlingMarketingGroup/go-zpl^FS
+
+^FO250,50
+^A0N,25,25
+^FDgo-zpl WASM Demo^FS
+
+^XZ`,
+
+    shipping: `^XA
+
+^FX Top section with logo, name and address.
+^CF0,60
+^FO50,50^GB100,100,100^FS
+^FO75,75^FR^GB100,100,100^FS
+^FO93,93^GB40,40,40^FS
+^FO220,50^FDIntershipping, Inc.^FS
+^CF0,30
+^FO220,115^FD1000 Shipping Lane^FS
+^FO220,155^FDShelbyville TN 38102^FS
+^FO220,195^FDUnited States (USA)^FS
+^FO50,250^GB700,3,3^FS
+
+^FX Second section with recipient address and permit information.
+^CFA,30
+^FO50,300^FDJohn Doe^FS
+^FO50,340^FD100 Main Street^FS
+^FO50,380^FDSpringfield TN 39021^FS
+^FO50,420^FDUnited States (USA)^FS
+^CFA,15
+^FO600,300^GB150,150,3^FS
+^FO638,340^FDPermit^FS
+^FO638,390^FD123456^FS
+^FO50,500^GB700,3,3^FS
+
+^FX Third section with bar code.
+^BY5,2,270
+^FO100,550^BC^FD12345678^FS
+
+^FX Fourth section (the two boxes on the bottom).
+^FO50,900^GB700,250,3^FS
+^FO400,900^GB3,250,3^FS
+^CF0,40
+^FO100,960^FDCtr. X34B-1^FS
+^FO100,1010^FDREF1 F00B47^FS
+^FO100,1060^FDREF2 BL4H8^FS
+^CF0,190
+^FO470,955^FDCA^FS
+
+^XZ`,
+
+    product: `^XA
+
+^FX Product Label with Price and Barcode
+^CF0,60
+^FO50,30^FDWireless Mouse^FS
+
+^CF0,30
+^FO50,100^FDSKU: WM-2024-BLK^FS
+^FO50,140^FDColor: Matte Black^FS
+^FO50,180^FDBluetooth 5.0 | 2.4GHz^FS
+
+^FX Price box
+^FO500,30^GB280,120,3^FS
+^CF0,80
+^FO530,50^FD$29.99^FS
+
+^FX Horizontal divider
+^FO50,220^GB730,3,3^FS
+
+^FX Product barcode
+^BY3,2,100
+^FO200,260^BC^FD012345678905^FS
+
+^FX QR code for product page
+^FO50,400^BQN,2,4^FDMM,Ahttps://example.com/product/wm-2024^FS
+
+^FX Product details
+^CF0,25
+^FO220,420^FDScan for specs,^FS
+^FO220,450^FDreviews & manual^FS
+
+^FX Bottom info
+^FO50,520^GB730,3,3^FS
+^CF0,20
+^FO50,540^FDMade in USA | 1 Year Warranty | RoHS Compliant^FS
+
+^XZ`,
+
+    qrcode: `^XA
+
+^FX Business Card Style QR Code
+^CF0,50
+^FO100,50^FDJane Smith^FS
+^CF0,30
+^FO100,110^FDSenior Developer^FS
+^FO100,150^FDAcme Technologies^FS
+
+^FX Divider line
+^FO100,200^GB600,3,3^FS
+
+^FX Contact QR Code (vCard format)
+^FO100,230^BQN,2,8^FDMM,ABEGIN:VCARD
+VERSION:3.0
+N:Smith;Jane
+FN:Jane Smith
+ORG:Acme Technologies
+TITLE:Senior Developer
+TEL:+1-555-123-4567
+EMAIL:jane.smith@acme.dev
+URL:https://acme.dev
+END:VCARD^FS
+
+^FX Contact details
+^CF0,25
+^FO480,250^FD+1 (555) 123-4567^FS
+^FO480,290^FDjane.smith@acme.dev^FS
+^FO480,330^FDacme.dev^FS
+
+^FX GitHub
+^FO480,390^FDgithub.com/janesmith^FS
+
+^FX Scan prompt
+^CF0,20
+^FO200,600^FDScan to add contact^FS
+
+^XZ`,
+
+    shapes: `^XA
+
+^FX Shapes Demonstration
+^CF0,40
+^FO300,20^FDShapes Demo^FS
+
+^FX Boxes with different thicknesses
+^FO50,80^GB100,100,2^FS
+^FO170,80^GB100,100,5^FS
+^FO290,80^GB100,100,10^FS
+^FO410,80^GB100,100,50^FS
+
+^CF0,20
+^FO65,190^FDThin^FS
+^FO175,190^FDMedium^FS
+^FO295,190^FDThick^FS
+^FO425,190^FDFilled^FS
+
+^FX Circles
+^FO50,230^GC80,2^FS
+^FO150,230^GC80,5^FS
+^FO250,230^GC80,10^FS
+^FO350,230^GC80,40^FS
+
+^FX Ellipses
+^FO50,340^GE150,60,3^FS
+^FO220,340^GE100,80,5^FS
+^FO340,340^GE80,100,8^FS
+
+^FX Diagonal lines
+^FO50,450^GD100,100,5,B,R^FS
+^FO170,450^GD100,100,5,B,L^FS
+^FO290,450^GD150,80,8,B,R^FS
+
+^FX Field Reverse Demo
+^FO500,250^GB250,150,150^FS
+^FO520,270^FR^GB210,110,110^FS
+^FO550,300^GB150,50,50^FS
+
+^CF0,18
+^FO530,420^FDNested Boxes^FS
+^FO530,440^FD(Field Reverse)^FS
+
+^XZ`,
+
+    barcodes: `^XA
+
+^FX Barcode Sampler
+^CF0,35
+^FO250,20^FDBarcode Sampler^FS
+
+^FX Code 128
+^CF0,20
+^FO50,70^FDCode 128:^FS
+^BY2,2,60
+^FO50,95^BC^FDCODE128-TEST^FS
+
+^FX QR Code
+^FO450,70^FDQR Code:^FS
+^FO450,95^BQN,2,4^FDMM,Ahttps://go-zpl.dev^FS
+
+^FX Code 39
+^FO50,200^FDCode 39:^FS
+^BY2,2,60
+^FO50,225^B3N,N,60,Y,N^FDCODE39^FS
+
+^FX DataMatrix
+^FO450,200^FDDataMatrix:^FS
+^FO450,225^BXN,5,200^FDDataMatrix Test 123^FS
+
+^FX Interleaved 2 of 5
+^FO50,330^FDInterleaved 2 of 5:^FS
+^BY2,2,60
+^FO50,355^B2N,60,Y,N,N^FD12345678^FS
+
+^FX PDF417
+^FO450,330^FDPDF417:^FS
+^FO450,355^B7N,5,3,2,5,N^FDPDF417 Demo^FS
+
+^FX UPC-A
+^FO50,460^FDUPC-A:^FS
+^BY2,2,60
+^FO50,485^BUN,60,Y,N^FD01234567890^FS
+
+^FX MaxiCode (if supported)
+^FO450,460^FDMaxiCode:^FS
+^FO450,485^BD2^FD[)>_1E01_1D961Z00000001_1DUPSN_1D12345_1E_04^FS
+
+^XZ`,
+};
+
 // Load saved state from localStorage
 function loadState() {
     try {
@@ -296,6 +523,16 @@ function initControls() {
 }
 
 // Control change handlers
+document.getElementById('example').addEventListener('change', () => {
+    const exampleKey = document.getElementById('example').value;
+    if (exampleKey && examples[exampleKey] && editor) {
+        editor.setValue(examples[exampleKey]);
+        // Reset dropdown to placeholder after loading
+        document.getElementById('example').value = '';
+        saveState();
+    }
+});
+
 document.getElementById('dpi').addEventListener('change', () => {
     // When DPI changes, update the dots values but keep the display unit values
     const dpi = parseInt(document.getElementById('dpi').value, 10);

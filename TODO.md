@@ -95,10 +95,10 @@ Comprehensive task list for the go-zpl library.
 - [x] `^GF` - Graphic field (bitmap data)
 - [x] ASCII hex encoding
 - [x] Binary encoding
-- [ ] Compressed binary encoding (Z64, LZ77)
-- [ ] PNG to ZPL conversion
-- [ ] JPEG to ZPL conversion
-- [ ] Dithering algorithms (Floyd-Steinberg, ordered, etc.)
+- [x] Compressed binary encoding (Z64)
+- [x] PNG to ZPL conversion (via ImageConverter)
+- [x] JPEG to ZPL conversion (via ImageConverter)
+- [x] Dithering algorithms (Floyd-Steinberg, ordered, threshold)
 
 ### Image Management
 
@@ -425,12 +425,12 @@ These tools are in the `tools/` directory with `//go:build ignore` tags:
 
 ### Web UI (WebAssembly)
 
-- [ ] Compile renderer to WebAssembly using TinyGo or standard Go WASM
-- [ ] Create simple web interface for ZPL preview
-- [ ] Live rendering as user types ZPL
+- [x] Compile renderer to WebAssembly using standard Go WASM
+- [x] Create simple web interface for ZPL preview
+- [x] Live rendering as user types ZPL
 - [ ] Auto-deploy to GitHub Pages via GitHub Actions
-- [ ] Reference implementation: [go2ts](https://github.com/StirlingMarketingGroup/go2ts) pattern
-- [ ] No server required - fully client-side rendering
+- [x] Reference implementation: [go2ts](https://github.com/StirlingMarketingGroup/go2ts) pattern
+- [x] No server required - fully client-side rendering
 
 ---
 

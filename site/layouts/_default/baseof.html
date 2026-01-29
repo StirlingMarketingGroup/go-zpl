@@ -9,6 +9,16 @@
     {{ $style := resources.Get "sass/main.scss" | toCSS | minify }}
     <link rel="stylesheet" href="{{ $style.RelPermalink }}">
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    {{- if not hugo.IsServer }}
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-J4LQXWKDP6"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-J4LQXWKDP6');
+    </script>
+    {{- end }}
 </head>
 <body>
     {{ block "main" . }}{{ end }}

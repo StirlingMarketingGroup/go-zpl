@@ -508,9 +508,9 @@ require(['vs/editor/editor.main'], function () {
         },
     });
 
-    // Load saved state
+    // Load saved state (default to UPS Import Control example)
     const saved = loadState();
-    const initialZPL = saved?.zpl || defaultZPL;
+    const initialZPL = saved?.zpl || examples.ups.zpl;
 
     // Create editor
     editor = monaco.editor.create(document.getElementById('editor'), {

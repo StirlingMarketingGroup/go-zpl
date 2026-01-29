@@ -355,7 +355,7 @@ func (p *parser) parseBarcodeCode128() error {
 	if getParam(params, 0) != "" {
 		orient = Orientation(getParam(params, 0)[0])
 	}
-	height := parseInt(getParam(params, 1), 100)
+	height := parseInt(getParam(params, 1), 0) // 0 means use ^BY height
 	printInterp := getParam(params, 2) != "N"
 	interpAbove := getParam(params, 3) == "Y"
 	checkDigit := getParam(params, 4) == "Y"

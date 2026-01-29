@@ -106,7 +106,9 @@ func (r *Renderer) RenderPNG(label *zpl.Label, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return png.Encode(w, img)
+	// Use BestSpeed compression - much faster with minimal size increase for label images
+	encoder := &png.Encoder{CompressionLevel: png.BestSpeed}
+	return encoder.Encode(w, img)
 }
 
 // canvas manages the rendering state and image buffer.
@@ -208,15 +210,19 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 
 	case *zpl.GraphicBox:
 		c.drawBox(v)
+		c.fieldReverse = false // Reset after drawing
 
 	case *zpl.GraphicCircle:
 		c.drawCircle(v)
+		c.fieldReverse = false // Reset after drawing
 
 	case *zpl.GraphicDiagonalLine:
 		c.drawDiagonalLine(v)
+		c.fieldReverse = false // Reset after drawing
 
 	case *zpl.GraphicEllipse:
 		c.drawEllipse(v)
+		c.fieldReverse = false // Reset after drawing
 
 	case *zpl.BarcodeDefault:
 		c.setBarcodeDefault(v)
@@ -264,13 +270,8 @@ func (c *canvas) drawText(text string) {
 		height = 30
 	}
 
-	width := c.fontWidth
-	if width == 0 {
-		// Proportional: width is approximately 0.6 * height for most fonts
-		width = height * 6 / 10
-	}
-
-	c.fontMgr.drawText(c.img, text, c.curX, c.curY, c.currentFont, height, width, c.fontOrient, c.fieldReverse)
+	// Pass fontWidth directly - 0 means proportional (natural font width)
+	c.fontMgr.drawText(c.img, text, c.curX, c.curY, c.currentFont, height, c.fontWidth, c.fontOrient, c.fieldReverse)
 
 	// Reset field reverse after drawing
 	c.fieldReverse = false
@@ -285,17 +286,12 @@ func (c *canvas) drawBox(box *zpl.GraphicBox) {
 	t := box.Thickness
 	isWhite := box.Color == zpl.LineColorWhite
 
-	col := color.RGBA{0, 0, 0, 255}
-	if isWhite {
-		col = color.RGBA{255, 255, 255, 255}
-	}
-
 	// For filled boxes (thickness >= min dimension / 2)
 	if t >= w/2 || t >= h/2 {
 		// Draw filled rectangle
 		for dy := 0; dy < h; dy++ {
 			for dx := 0; dx < w; dx++ {
-				c.img.Set(x+dx, y+dy, col)
+				c.setPixel(x+dx, y+dy, isWhite)
 			}
 		}
 		return
@@ -305,26 +301,53 @@ func (c *canvas) drawBox(box *zpl.GraphicBox) {
 	// Top edge
 	for dy := 0; dy < t; dy++ {
 		for dx := 0; dx < w; dx++ {
-			c.img.Set(x+dx, y+dy, col)
+			c.setPixel(x+dx, y+dy, isWhite)
 		}
 	}
 	// Bottom edge
 	for dy := h - t; dy < h; dy++ {
 		for dx := 0; dx < w; dx++ {
-			c.img.Set(x+dx, y+dy, col)
+			c.setPixel(x+dx, y+dy, isWhite)
 		}
 	}
 	// Left edge
 	for dy := t; dy < h-t; dy++ {
 		for dx := 0; dx < t; dx++ {
-			c.img.Set(x+dx, y+dy, col)
+			c.setPixel(x+dx, y+dy, isWhite)
 		}
 	}
 	// Right edge
 	for dy := t; dy < h-t; dy++ {
 		for dx := w - t; dx < w; dx++ {
-			c.img.Set(x+dx, y+dy, col)
+			c.setPixel(x+dx, y+dy, isWhite)
 		}
+	}
+}
+
+// setPixel sets a pixel, handling field reverse (^FR) by XOR-ing with existing pixels.
+func (c *canvas) setPixel(px, py int, isWhite bool) {
+	if px < 0 || px >= c.img.Bounds().Max.X || py < 0 || py >= c.img.Bounds().Max.Y {
+		return
+	}
+
+	// ^FR inverts the background - black becomes white, white becomes black
+	if c.fieldReverse {
+		existing := c.img.RGBAAt(px, py)
+		if existing.R == 0 && existing.G == 0 && existing.B == 0 {
+			// Black -> White
+			c.img.Set(px, py, color.RGBA{255, 255, 255, 255})
+		} else {
+			// White -> Black
+			c.img.Set(px, py, color.RGBA{0, 0, 0, 255})
+		}
+		return
+	}
+
+	// Normal drawing
+	if isWhite {
+		c.img.Set(px, py, color.RGBA{255, 255, 255, 255})
+	} else {
+		c.img.Set(px, py, color.RGBA{0, 0, 0, 255})
 	}
 }
 
@@ -336,11 +359,6 @@ func (c *canvas) drawCircle(circle *zpl.GraphicCircle) {
 	t := circle.Thickness
 	isWhite := circle.Color == zpl.LineColorWhite
 
-	col := color.RGBA{0, 0, 0, 255}
-	if isWhite {
-		col = color.RGBA{255, 255, 255, 255}
-	}
-
 	rOuter := r
 	rInner := r - t
 	if rInner < 0 {
@@ -351,7 +369,7 @@ func (c *canvas) drawCircle(circle *zpl.GraphicCircle) {
 		for dx := -r; dx <= r; dx++ {
 			dist := dx*dx + dy*dy
 			if dist <= rOuter*rOuter && dist >= rInner*rInner {
-				c.img.Set(cx+dx, cy+dy, col)
+				c.setPixel(cx+dx, cy+dy, isWhite)
 			}
 		}
 	}
@@ -367,11 +385,6 @@ func (c *canvas) drawDiagonalLine(line *zpl.GraphicDiagonalLine) {
 	isWhite := line.Color == zpl.LineColorWhite
 	isRight := line.Orientation == zpl.DiagonalRightLeaning
 
-	col := color.RGBA{0, 0, 0, 255}
-	if isWhite {
-		col = color.RGBA{255, 255, 255, 255}
-	}
-
 	// Use Bresenham-style line drawing with thickness
 	for dy := 0; dy < h; dy++ {
 		// Calculate x position along the diagonal
@@ -384,11 +397,7 @@ func (c *canvas) drawDiagonalLine(line *zpl.GraphicDiagonalLine) {
 
 		// Draw thickness perpendicular to line direction
 		for dt := -t / 2; dt <= t/2; dt++ {
-			px := x + lineX + dt
-			py := y + dy
-			if px >= 0 && px < c.img.Bounds().Max.X && py >= 0 && py < c.img.Bounds().Max.Y {
-				c.img.Set(px, py, col)
-			}
+			c.setPixel(x+lineX+dt, y+dy, isWhite)
 		}
 	}
 }
@@ -401,11 +410,6 @@ func (c *canvas) drawEllipse(ellipse *zpl.GraphicEllipse) {
 	ry := ellipse.Height / 2
 	t := ellipse.Thickness
 	isWhite := ellipse.Color == zpl.LineColorWhite
-
-	col := color.RGBA{0, 0, 0, 255}
-	if isWhite {
-		col = color.RGBA{255, 255, 255, 255}
-	}
 
 	for dy := -ry; dy <= ry; dy++ {
 		for dx := -rx; dx <= rx; dx++ {
@@ -422,7 +426,7 @@ func (c *canvas) drawEllipse(ellipse *zpl.GraphicEllipse) {
 			inner := float64(dx*dx)/float64(innerRx*innerRx) + float64(dy*dy)/float64(innerRy*innerRy)
 
 			if outer <= 1.0 && inner >= 1.0 {
-				c.img.Set(cx+dx, cy+dy, col)
+				c.setPixel(cx+dx, cy+dy, isWhite)
 			}
 		}
 	}

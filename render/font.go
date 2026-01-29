@@ -20,6 +20,9 @@ var font0Data []byte
 //go:embed ocr_b.ttf
 var ocrBData []byte
 
+//go:embed dejavu_sans_mono.ttf
+var dejaVuSansMonoData []byte
+
 //go:embed noto_sans_cjk_sc_bold.otf
 var notoCJKData []byte
 
@@ -27,6 +30,7 @@ var notoCJKData []byte
 type fontManager struct {
 	// Loaded fonts
 	font0   *opentype.Font // CG Triumvirate Bold Condensed approximation (scanned from Zebra)
+	fontA   *opentype.Font // DejaVu Sans Mono (clean monospace with slashed zeros)
 	fontE   *opentype.Font // OCR-B
 	fontCJK *opentype.Font // Noto Sans CJK SC Bold (fallback for CJK characters)
 
@@ -47,6 +51,11 @@ func newFontManager() (*fontManager, error) {
 		return nil, err
 	}
 
+	fA, err := opentype.Parse(dejaVuSansMonoData)
+	if err != nil {
+		return nil, err
+	}
+
 	fE, err := opentype.Parse(ocrBData)
 	if err != nil {
 		return nil, err
@@ -59,6 +68,7 @@ func newFontManager() (*fontManager, error) {
 
 	return &fontManager{
 		font0:        f0,
+		fontA:        fA,
 		fontE:        fE,
 		fontCJK:      fCJK,
 		faceCache:    make(map[faceCacheKey]font.Face),
@@ -69,6 +79,8 @@ func newFontManager() (*fontManager, error) {
 // getFont returns the opentype.Font for the given ZPL font identifier.
 func (fm *fontManager) getFont(f zpl.Font) *opentype.Font {
 	switch f {
+	case zpl.FontA:
+		return fm.fontA
 	case zpl.FontE:
 		return fm.fontE
 	default:
@@ -100,10 +112,11 @@ func (fm *fontManager) getFace(f zpl.Font, height int) (font.Face, error) {
 	// Get the appropriate font
 	otFont := fm.getFont(f)
 
+	size := float64(height)
+
 	// Create new face
-	// Font size in points; we use height as the size
 	face, err := opentype.NewFace(otFont, &opentype.FaceOptions{
-		Size:    float64(height),
+		Size:    size,
 		DPI:     72, // Standard screen DPI for point-to-pixel conversion
 		Hinting: font.HintingFull,
 	})
@@ -164,16 +177,11 @@ func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Fo
 	}
 
 	// Calculate scale factor for width adjustment
-	// If width != height, we need to scale horizontally
-	scaleX := float64(width) / float64(height)
-	if width == 0 {
-		// Default proportional ratio varies by font
-		switch f {
-		case zpl.FontE:
-			scaleX = 0.6 // OCR-B is fairly square
-		default:
-			scaleX = 0.6 // Default for condensed fonts
-		}
+	// If width == 0, use natural font proportions (no scaling)
+	// If width != 0, scale horizontally to match requested width
+	scaleX := 1.0
+	if width != 0 {
+		scaleX = float64(width) / float64(height)
 	}
 
 	// Handle orientation by rendering to a temporary image then rotating

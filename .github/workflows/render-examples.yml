@@ -77,7 +77,7 @@ jobs:
               if width == 0 {
                   width = 812
               }
-              renderer := render.New(zpl.DPI203).WithSize(width, 0)
+              renderer := render.New(zpl.DPI203).WithSize(width, 0).WithIgnoreLabelHome(true)
 
               // Output PNG path
               pngPath := strings.TrimSuffix(zplPath, ".zpl") + "_rendered.png"

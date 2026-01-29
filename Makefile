@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet build clean coverage fuzz help setup hooks
+.PHONY: all test lint fmt vet build clean coverage fuzz help setup hooks wasm site site-dev
 
 # Default target
 all: lint test build
@@ -70,6 +70,22 @@ docs:
 	@echo "View documentation at: https://pkg.go.dev/github.com/StirlingMarketingGroup/go-zpl"
 	go doc -all .
 
+# Build WebAssembly for the site
+wasm:
+	cd site/assets/go && GOOS=js GOARCH=wasm go build -o ../../static/lib.wasm .
+
+# Build the Hugo site
+site: wasm
+	cd site && hugo --minify
+
+# Run Hugo dev server
+site-dev:
+	cd site && hugo server --bind 0.0.0.0
+
+# Run full dev environment (requires npm install first)
+dev:
+	npm run dev
+
 help:
 	@echo "Available targets:"
 	@echo "  all       - Run lint, test, and build (default)"
@@ -86,4 +102,8 @@ help:
 	@echo "  setup     - Full dev setup (tools + hooks)"
 	@echo "  bench     - Run benchmarks"
 	@echo "  docs      - View package documentation"
+	@echo "  wasm      - Build WebAssembly for the site"
+	@echo "  site      - Build the Hugo site (includes wasm)"
+	@echo "  site-dev  - Run Hugo dev server"
+	@echo "  dev       - Run full dev environment (Hugo + wasm watch)"
 	@echo "  help      - Show this help message"

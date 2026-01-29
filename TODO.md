@@ -245,7 +245,7 @@ Comprehensive task list for the go-zpl library.
 - [x] Font scaling algorithm
 - [x] Text rotation (0°, 90°, 180°, 270°)
 - [ ] Text alignment in field blocks
-- [x] Reverse print (white on black) - partial (needs black background fill)
+- [x] Reverse print (white on black) - works for graphics; text reverse still needs black background fill
 - [x] CJK character support via Noto Sans CJK fallback
 - [ ] CJK fallback for rotated text orientations (R, I, B)
 
@@ -396,7 +396,8 @@ Comprehensive task list for the go-zpl library.
 - [ ] Research exact barcode bar width calculations
 - [ ] Determine differences between printer firmware versions
 - [ ] Document any known deviations from real printer output
-- [ ] FieldReverse (^FR) needs black background fill behind text, not just inverted pixels
+- [x] FieldReverse (^FR) for graphics - now inverts color for ^GB, ^GC, ^GD, ^GE
+- [ ] FieldReverse (^FR) for text needs black background fill behind text, not just inverted pixels
 
 ---
 

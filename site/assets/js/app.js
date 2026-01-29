@@ -675,8 +675,6 @@ document.getElementById('example').addEventListener('change', () => {
             updateDimensionDisplays();
         }
 
-        // Reset dropdown to placeholder after loading
-        document.getElementById('example').value = '';
         saveState();
     }
 });

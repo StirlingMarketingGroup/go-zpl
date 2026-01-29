@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"strings"
@@ -145,6 +146,25 @@ func (r *Renderer) RenderPNG(label *zpl.Label, w io.Writer) error {
 	// Use BestSpeed compression
 	encoder := &png.Encoder{CompressionLevel: png.BestSpeed}
 	return encoder.Encode(w, palettedImg)
+}
+
+// RenderJPEG renders the label and writes it as a JPEG image to the writer.
+// Quality should be between 1 and 100, where 100 is best quality.
+func (r *Renderer) RenderJPEG(label *zpl.Label, w io.Writer, quality int) error {
+	img, err := r.Render(label)
+	if err != nil {
+		return err
+	}
+
+	// Clamp quality to valid range
+	if quality < 1 {
+		quality = 1
+	}
+	if quality > 100 {
+		quality = 100
+	}
+
+	return jpeg.Encode(w, img, &jpeg.Options{Quality: quality})
 }
 
 // canvas manages the rendering state and image buffer.

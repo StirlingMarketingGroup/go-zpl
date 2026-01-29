@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -93,6 +94,28 @@ func TestRenderer_RenderPNG(t *testing.T) {
 	_, err = png.Decode(&buf)
 	if err != nil {
 		t.Errorf("Output is not valid PNG: %v", err)
+	}
+}
+
+func TestRenderer_RenderJPEG(t *testing.T) {
+	label := zpl.NewLabel().
+		SetSizeDots(200, 100).
+		Add(zpl.NewFieldOrigin(10, 10)).
+		Add(zpl.NewScalableFont(zpl.Font0, 24, 24)).
+		Add(zpl.NewFieldData("Test"))
+
+	renderer := New(zpl.DPI203).WithSize(200, 100)
+
+	var buf bytes.Buffer
+	err := renderer.RenderJPEG(label, &buf, 90)
+	if err != nil {
+		t.Fatalf("RenderJPEG failed: %v", err)
+	}
+
+	// Verify it's a valid JPEG
+	_, err = jpeg.Decode(&buf)
+	if err != nil {
+		t.Errorf("Output is not valid JPEG: %v", err)
 	}
 }
 

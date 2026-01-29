@@ -237,21 +237,21 @@ FFFFFFFFFFFFFFFFFFFFFFFFFFFFF00C1B6C00
 
     qrcode: {
         width: 4,
-        height: 3.5,
+        height: 3,
         zpl: `^XA
 
 ^FX Business Card Style QR Code
-^CF0,50
-^FO100,50^FDJane Smith^FS
-^CF0,30
-^FO100,110^FDSenior Developer^FS
-^FO100,150^FDAcme Technologies^FS
+^CF0,45
+^FO50,40^FDJane Smith^FS
+^CF0,28
+^FO50,95^FDSenior Developer^FS
+^FO50,130^FDAcme Technologies^FS
 
 ^FX Divider line
-^FO100,200^GB600,3,3^FS
+^FO50,175^GB710,3,3^FS
 
 ^FX Contact QR Code (vCard format)
-^FO100,230^BQN,2,8^FDMM,ABEGIN:VCARD
+^FO50,200^BQN,2,4^FDMM,ABEGIN:VCARD
 VERSION:3.0
 N:Smith;Jane
 FN:Jane Smith
@@ -262,18 +262,19 @@ EMAIL:jane.smith@acme.dev
 URL:https://acme.dev
 END:VCARD^FS
 
-^FX Contact details
-^CF0,25
-^FO480,250^FD+1 (555) 123-4567^FS
-^FO480,290^FDjane.smith@acme.dev^FS
-^FO480,330^FDacme.dev^FS
-
-^FX GitHub
-^FO480,390^FDgithub.com/janesmith^FS
+^FX Contact details (to the right of QR)
+^CF0,24
+^FO300,210^FD+1 (555) 123-4567^FS
+^FO300,245^FDjane.smith@acme.dev^FS
+^FO300,280^FDacme.dev^FS
+^FO300,315^FDgithub.com/janesmith^FS
 
 ^FX Scan prompt
-^CF0,20
-^FO200,600^FDScan to add contact^FS
+^CF0,18
+^FO85,395^FDScan to save contact^FS
+
+^FX Bottom border
+^FO50,560^GB710,3,3^FS
 
 ^XZ`
     },

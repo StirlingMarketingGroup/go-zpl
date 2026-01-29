@@ -228,24 +228,33 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
-	// In ZPL, ^FO specifies the top-left corner of the text bounding box
-	// We need to add the ascent to get the baseline position
+	// Calculate actual bounds by scanning glyphs
+	// Font metrics can underreport ascent - some glyphs extend above the reported ascent
 	metrics := face.Metrics()
-	ascent := metrics.Ascent.Round()
-	textHeight := (metrics.Ascent + metrics.Descent).Round()
-
-	// Calculate total width at natural scale
+	maxAscent := metrics.Ascent
+	maxDescent := metrics.Descent
 	totalWidth := fixed.Int26_6(0)
+
 	for _, r := range text {
 		currentFace := face
 		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
 			currentFace = cjkFace
 		}
-		adv, ok := currentFace.GlyphAdvance(r)
+		bounds, adv, ok := currentFace.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
+			// bounds.Min.Y is negative (above baseline), bounds.Max.Y is positive (below)
+			if -bounds.Min.Y > maxAscent {
+				maxAscent = -bounds.Min.Y
+			}
+			if bounds.Max.Y > maxDescent {
+				maxDescent = bounds.Max.Y
+			}
 		}
 	}
+
+	ascent := maxAscent.Round()
+	textHeight := (maxAscent + maxDescent).Round()
 	naturalWidth := totalWidth.Round()
 
 	if naturalWidth == 0 || textHeight == 0 {
@@ -323,17 +332,27 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 
 // drawTextRotated90 draws text rotated 90 degrees clockwise.
 func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
-	// Calculate text dimensions
+	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
-	textHeight := (metrics.Ascent + metrics.Descent).Round()
-
+	maxAscent := metrics.Ascent
+	maxDescent := metrics.Descent
 	totalWidth := fixed.Int26_6(0)
+
 	for _, r := range text {
-		adv, ok := face.GlyphAdvance(r)
+		bounds, adv, ok := face.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
+			if -bounds.Min.Y > maxAscent {
+				maxAscent = -bounds.Min.Y
+			}
+			if bounds.Max.Y > maxDescent {
+				maxDescent = bounds.Max.Y
+			}
 		}
 	}
+
+	ascent := maxAscent.Round()
+	textHeight := (maxAscent + maxDescent).Round()
 	naturalWidth := totalWidth.Round()
 
 	if naturalWidth == 0 || textHeight == 0 {
@@ -357,7 +376,7 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
 	drawer.DrawString(text)
 
@@ -386,17 +405,27 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 
 // drawTextRotated180 draws text rotated 180 degrees.
 func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
-	// Calculate text dimensions
+	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
-	textHeight := (metrics.Ascent + metrics.Descent).Round()
-
+	maxAscent := metrics.Ascent
+	maxDescent := metrics.Descent
 	totalWidth := fixed.Int26_6(0)
+
 	for _, r := range text {
-		adv, ok := face.GlyphAdvance(r)
+		bounds, adv, ok := face.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
+			if -bounds.Min.Y > maxAscent {
+				maxAscent = -bounds.Min.Y
+			}
+			if bounds.Max.Y > maxDescent {
+				maxDescent = bounds.Max.Y
+			}
 		}
 	}
+
+	ascent := maxAscent.Round()
+	textHeight := (maxAscent + maxDescent).Round()
 	naturalWidth := totalWidth.Round()
 
 	if naturalWidth == 0 || textHeight == 0 {
@@ -420,7 +449,7 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
 	drawer.DrawString(text)
 
@@ -448,17 +477,27 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 
 // drawTextRotated270 draws text rotated 270 degrees clockwise (90 counter-clockwise).
 func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y int, scaleX float64, reverse bool) {
-	// Calculate text dimensions
+	// Calculate actual bounds by scanning glyphs
 	metrics := face.Metrics()
-	textHeight := (metrics.Ascent + metrics.Descent).Round()
-
+	maxAscent := metrics.Ascent
+	maxDescent := metrics.Descent
 	totalWidth := fixed.Int26_6(0)
+
 	for _, r := range text {
-		adv, ok := face.GlyphAdvance(r)
+		bounds, adv, ok := face.GlyphBounds(r)
 		if ok {
 			totalWidth += adv
+			if -bounds.Min.Y > maxAscent {
+				maxAscent = -bounds.Min.Y
+			}
+			if bounds.Max.Y > maxDescent {
+				maxDescent = bounds.Max.Y
+			}
 		}
 	}
+
+	ascent := maxAscent.Round()
+	textHeight := (maxAscent + maxDescent).Round()
 	naturalWidth := totalWidth.Round()
 
 	if naturalWidth == 0 || textHeight == 0 {
@@ -482,7 +521,7 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(metrics.Ascent.Round())},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
 	}
 	drawer.DrawString(text)
 

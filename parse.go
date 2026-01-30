@@ -22,7 +22,8 @@ type parser struct {
 	label *Label
 
 	// Current state
-	inFormat bool // Inside ^XA...^XZ block
+	inFormat          bool // Inside ^XA...^XZ block
+	fieldHexIndicator rune // ^FH indicator for next ^FD/^FV
 }
 
 func (p *parser) parse() (*Label, error) {
@@ -95,6 +96,8 @@ func (p *parser) parseCaretCommand() error {
 		p.label.Add(NewFieldReverse())
 	case "FW":
 		return p.parseFieldDirection()
+	case "FH":
+		return p.parseFieldHexIndicator()
 	case "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9",
 		"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
 		"AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
@@ -141,7 +144,7 @@ func (p *parser) parseCaretCommand() error {
 	case "BO":
 		return p.parseBarcodeAztec()
 	// Commands we recognize but ignore for now
-	case "LR", "MN", "MF", "MC", "CV", "FH", "DN", "PQ", "B3":
+	case "LR", "MN", "MF", "MC", "CV", "DN", "PQ", "B3":
 		p.skipToNextCommand()
 	default:
 		// Unknown command - skip to next command
@@ -282,9 +285,20 @@ func (p *parser) parseFieldDirection() error {
 	return nil
 }
 
+func (p *parser) parseFieldHexIndicator() error {
+	// ^FH command: optional single-character indicator, default '_'
+	if p.pos >= len(p.input) || p.input[p.pos] == '^' || p.input[p.pos] == '~' {
+		p.fieldHexIndicator = '_'
+		return nil
+	}
+	p.fieldHexIndicator = rune(p.input[p.pos])
+	p.pos++
+	return nil
+}
+
 func (p *parser) parseFieldData() error {
 	// Read until ^FS
-	data := ""
+	var sb strings.Builder
 	for p.pos < len(p.input) {
 		if strings.HasPrefix(p.input[p.pos:], "^FS") {
 			p.pos += 3
@@ -294,12 +308,18 @@ func (p *parser) parseFieldData() error {
 			// Another command - stop here
 			break
 		}
-		data += string(p.input[p.pos])
+		sb.WriteByte(p.input[p.pos])
 		p.pos++
 	}
+	data := sb.String()
 	if data != "" {
+		if p.fieldHexIndicator != 0 {
+			data = decodeHexEscapes(data, p.fieldHexIndicator)
+		}
 		p.label.Add(NewFieldData(data))
 	}
+	// ^FH applies to the current field only; reset after ^FD/^FV
+	p.fieldHexIndicator = 0
 	return nil
 }
 

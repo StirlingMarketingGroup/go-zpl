@@ -52,6 +52,50 @@ type faceCacheKey struct {
 	height int
 }
 
+func fontScale(f zpl.Font, height int) float64 { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.FontB:
+		return 1.5
+	case zpl.FontD:
+		return 1.15
+	default:
+		return 1.0
+	}
+}
+
+func fontSizeAdjust(f zpl.Font, height int) float64 { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.FontD:
+		return -0.5
+	default:
+		return 0.0
+	}
+}
+
+func fontWidthScale(f zpl.Font, height int) float64 { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.FontB:
+		return 1.3
+	case zpl.FontD:
+		return 0.95
+	default:
+		return 1.0
+	}
+}
+
+func fontBaselineAdjust(f zpl.Font, height int) int { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.FontB:
+		// Lift small labels slightly so they don't sit on the divider line.
+		return -4
+	case zpl.FontD:
+		// Keep baseline steady when scaling Font D taller.
+		return -int(math.Round(float64(height) * 0.15))
+	default:
+		return 0
+	}
+}
+
 func newFontManager() (*fontManager, error) {
 	f0, err := opentype.Parse(font0Data)
 	if err != nil {
@@ -94,8 +138,11 @@ func (fm *fontManager) getFont(f zpl.Font) *opentype.Font {
 	switch f {
 	case zpl.FontA:
 		return fm.fontA
-	case zpl.FontB, zpl.FontC, zpl.FontD:
-		// Fonts B, C, D are typewriter-style monospace fonts
+	case zpl.FontB:
+		// Font B should match the small typewriter-style text
+		return fm.fontD
+	case zpl.FontC, zpl.FontD:
+		// Fonts C, D are typewriter-style monospace fonts
 		return fm.fontD
 	case zpl.FontE:
 		return fm.fontE
@@ -128,7 +175,7 @@ func (fm *fontManager) getFace(f zpl.Font, height int) (font.Face, error) {
 	// Get the appropriate font
 	otFont := fm.getFont(f)
 
-	size := float64(height)
+	size := float64(height)*fontScale(f, height) + fontSizeAdjust(f, height)
 
 	// Create new face
 	face, err := opentype.NewFace(otFont, &opentype.FaceOptions{
@@ -181,7 +228,25 @@ func hasGlyph(face font.Face, r rune) bool {
 	return ok
 }
 
-// scaleImageHorizontally scales an image horizontally using bilinear interpolation.
+func fontBoldness(f zpl.Font, height int) int { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.FontC:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func fontInkGain(f zpl.Font, height int) int { //nolint:revive,unparam // height reserved for future per-size tuning
+	switch f {
+	case zpl.Font0:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// scaleImageHorizontally scales an image horizontally using nearest-neighbor interpolation.
 func scaleImageHorizontally(src *image.RGBA, scaleX float64) *image.RGBA {
 	if scaleX == 1.0 {
 		return src
@@ -195,11 +260,38 @@ func scaleImageHorizontally(src *image.RGBA, scaleX float64) *image.RGBA {
 
 	dest := image.NewRGBA(image.Rect(0, 0, destWidth, destHeight))
 
-	// Use affine transformation for horizontal scaling
-	// The transform maps destination coords to source coords, so we use 1/scaleX
-	imgdraw.ApproxBiLinear.Scale(dest, dest.Bounds(), src, srcBounds, imgdraw.Over, nil)
+	// Use nearest-neighbor scaling to keep hard pixel edges for ZPL-style text.
+	imgdraw.NearestNeighbor.Scale(dest, dest.Bounds(), src, srcBounds, imgdraw.Over, nil)
 
 	return dest
+}
+
+func blendTextPixel(dst color.RGBA, src color.RGBA, reverse bool) color.RGBA {
+	if reverse {
+		if src.R > dst.R {
+			dst.R = src.R
+		}
+		if src.G > dst.G {
+			dst.G = src.G
+		}
+		if src.B > dst.B {
+			dst.B = src.B
+		}
+		dst.A = 255
+		return dst
+	}
+
+	if src.R < dst.R {
+		dst.R = src.R
+	}
+	if src.G < dst.G {
+		dst.G = src.G
+	}
+	if src.B < dst.B {
+		dst.B = src.B
+	}
+	dst.A = 255
+	return dst
 }
 
 // drawText renders text to the image at the given position.
@@ -220,35 +312,92 @@ func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Fo
 	if width != 0 {
 		scaleX = float64(width) / float64(height)
 	}
+	scaleX *= fontWidthScale(f, height)
 
 	// Determine boldness (synthetic bold)
-	// Fonts B, C, D are bitmap fonts on real printers and are quite bold/blocky.
+	// Font C is a bitmap font on real printers and is quite bold/blocky.
 	// Our outline font is too thin, so we smear it.
-	boldness := 0
-	switch f {
-	case zpl.FontB, zpl.FontC, zpl.FontD:
-		// Increase boldness for these fonts
-		// 1 pixel smear seems appropriate for standard resolution
-		boldness = 1
-	}
+	boldness := fontBoldness(f, height)
+	inkGain := fontInkGain(f, height)
+	baselineAdjust := fontBaselineAdjust(f, height)
 
 	// Handle orientation by rendering to a temporary image then rotating
 	switch orient {
 	case zpl.OrientationNormal:
-		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness)
+		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
 	case zpl.OrientationRotated90:
-		fm.drawTextRotated90(img, face, text, x, y, height, scaleX, reverse, boldness)
+		fm.drawTextRotated90(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
 	case zpl.OrientationRotated180:
-		fm.drawTextRotated180(img, face, text, x, y, height, scaleX, reverse, boldness)
+		fm.drawTextRotated180(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
 	case zpl.OrientationRotated270:
-		fm.drawTextRotated270(img, face, text, x, y, height, scaleX, reverse, boldness)
+		fm.drawTextRotated270(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
 	default:
-		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness)
+		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
 	}
 }
 
+// measureTextWidth returns the rendered width in pixels for the given text.
+func (fm *fontManager) measureTextWidth(text string, f zpl.Font, height, width int) int {
+	if text == "" {
+		return 0
+	}
+
+	face, err := fm.getFace(f, height)
+	if err != nil {
+		return 0
+	}
+
+	cjkFace, _ := fm.getCJKFace(height)
+
+	scaleX := 1.0
+	if width != 0 {
+		scaleX = float64(width) / float64(height)
+	}
+	scaleX *= fontWidthScale(f, height)
+
+	penX := fixed.Int26_6(0)
+	var minX, maxX fixed.Int26_6
+	hasBounds := false
+	for _, r := range text {
+		currentFace := face
+		if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+			currentFace = cjkFace
+		}
+		bounds, adv, ok := currentFace.GlyphBounds(r)
+		if ok {
+			glyphMinX := penX + bounds.Min.X
+			glyphMaxX := penX + bounds.Max.X
+			if !hasBounds {
+				minX = glyphMinX
+				maxX = glyphMaxX
+				hasBounds = true
+			} else {
+				if glyphMinX < minX {
+					minX = glyphMinX
+				}
+				if glyphMaxX > maxX {
+					maxX = glyphMaxX
+				}
+			}
+		}
+		penX += adv
+	}
+
+	if !hasBounds {
+		return 0
+	}
+
+	naturalWidth := (maxX - minX).Round()
+	if naturalWidth == 0 {
+		return 0
+	}
+	naturalWidth += fontBoldness(f, height)
+
+	return int(math.Round(float64(naturalWidth) * scaleX))
+}
+
 // drawTextNormal draws text in normal orientation (0 degrees).
-func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness int) {
+func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -304,7 +453,7 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 			Dst:  tmpImg,
 			Src:  image.NewUniform(col),
 			Face: face,
-			Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
+			Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent + baselineAdjust)},
 		}
 
 		// Draw text with synthetic bold by drawing at multiple offsets
@@ -315,14 +464,16 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 		}
 
 		for _, offset := range boldOffsets {
-			drawer.Dot = fixed.Point26_6{X: fixed.I(offset.X), Y: fixed.I(ascent + offset.Y)}
-			for _, r := range text {
-				currentFace := face
-				if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
-					currentFace = cjkFace
+			for pass := 0; pass <= inkGain; pass++ {
+				drawer.Dot = fixed.Point26_6{X: fixed.I(offset.X), Y: fixed.I(ascent + baselineAdjust + offset.Y)}
+				for _, r := range text {
+					currentFace := face
+					if !hasGlyph(face, r) && cjkFace != nil && hasGlyph(cjkFace, r) {
+						currentFace = cjkFace
+					}
+					drawer.Face = currentFace
+					drawer.DrawString(string(r))
 				}
-				drawer.Face = currentFace
-				drawer.DrawString(string(r))
 			}
 		}
 
@@ -337,14 +488,15 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 					destX := x + tx
 					destY := y + ty
 					if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
-						img.Set(destX, destY, c)
+						dst := img.RGBAAt(destX, destY)
+						img.Set(destX, destY, blendTextPixel(dst, c, reverse))
 					}
 				}
 			}
 		}
 	} else {
 		// No scaling needed, draw directly
-		baselineY := y + ascent
+		baselineY := y + ascent + baselineAdjust
 		drawer := &font.Drawer{
 			Dst:  img,
 			Src:  image.NewUniform(col),
@@ -359,26 +511,31 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 			}
 			drawer.Face = currentFace
 
-			// Draw with synthetic bold
 			startDot := drawer.Dot
-			drawer.DrawString(string(r))
+			adv, _ := currentFace.GlyphAdvance(r)
 
-			if boldness > 0 {
-				nextDot := drawer.Dot
-				for b := 1; b <= boldness; b++ {
-					drawer.Dot = startDot
-					drawer.Dot.X += fixed.I(b)
-					drawer.DrawString(string(r))
+			for pass := 0; pass <= inkGain; pass++ {
+				drawer.Dot = startDot
+				drawer.DrawString(string(r))
+
+				if boldness > 0 {
+					for b := 1; b <= boldness; b++ {
+						drawer.Dot = startDot
+						drawer.Dot.X += fixed.I(b)
+						drawer.DrawString(string(r))
+					}
 				}
-				drawer.Dot = nextDot
 			}
+
+			drawer.Dot = startDot
+			drawer.Dot.X += adv
 		}
 	}
 }
 
 // drawTextRotated90 draws text rotated 90 degrees clockwise.
 // Text reads top-to-bottom, with letters facing right.
-func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness int) {
+func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -430,7 +587,7 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent + baselineAdjust)},
 	}
 
 	// Draw each character, using CJK fallback when needed
@@ -441,19 +598,24 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 		}
 		drawer.Face = currentFace
 
-		// Draw with synthetic bold
 		startDot := drawer.Dot
-		drawer.DrawString(string(r))
+		adv, _ := currentFace.GlyphAdvance(r)
 
-		if boldness > 0 {
-			nextDot := drawer.Dot
-			for b := 1; b <= boldness; b++ {
-				drawer.Dot = startDot
-				drawer.Dot.X += fixed.I(b)
-				drawer.DrawString(string(r))
+		for pass := 0; pass <= inkGain; pass++ {
+			drawer.Dot = startDot
+			drawer.DrawString(string(r))
+
+			if boldness > 0 {
+				for b := 1; b <= boldness; b++ {
+					drawer.Dot = startDot
+					drawer.Dot.X += fixed.I(b)
+					drawer.DrawString(string(r))
+				}
 			}
-			drawer.Dot = nextDot
 		}
+
+		drawer.Dot = startDot
+		drawer.Dot.X += adv
 	}
 
 	// Scale horizontally if needed
@@ -474,7 +636,8 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 				destX := x + textHeight - 1 - ty
 				destY := y + tx
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
-					img.Set(destX, destY, c)
+					dst := img.RGBAAt(destX, destY)
+					img.Set(destX, destY, blendTextPixel(dst, c, reverse))
 				}
 			}
 		}
@@ -482,7 +645,7 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 }
 
 // drawTextRotated180 draws text rotated 180 degrees.
-func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness int) {
+func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -534,7 +697,7 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent + baselineAdjust)},
 	}
 
 	// Draw each character, using CJK fallback when needed
@@ -545,19 +708,24 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 		}
 		drawer.Face = currentFace
 
-		// Draw with synthetic bold
 		startDot := drawer.Dot
-		drawer.DrawString(string(r))
+		adv, _ := currentFace.GlyphAdvance(r)
 
-		if boldness > 0 {
-			nextDot := drawer.Dot
-			for b := 1; b <= boldness; b++ {
-				drawer.Dot = startDot
-				drawer.Dot.X += fixed.I(b)
-				drawer.DrawString(string(r))
+		for pass := 0; pass <= inkGain; pass++ {
+			drawer.Dot = startDot
+			drawer.DrawString(string(r))
+
+			if boldness > 0 {
+				for b := 1; b <= boldness; b++ {
+					drawer.Dot = startDot
+					drawer.Dot.X += fixed.I(b)
+					drawer.DrawString(string(r))
+				}
 			}
-			drawer.Dot = nextDot
 		}
+
+		drawer.Dot = startDot
+		drawer.Dot.X += adv
 	}
 
 	// Scale horizontally if needed
@@ -575,7 +743,8 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 				destX := x + scaledWidth - 1 - tx
 				destY := y + textHeight - 1 - ty
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
-					img.Set(destX, destY, c)
+					dst := img.RGBAAt(destX, destY)
+					img.Set(destX, destY, blendTextPixel(dst, c, reverse))
 				}
 			}
 		}
@@ -584,7 +753,7 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 
 // drawTextRotated270 draws text rotated 270 degrees clockwise (90 counter-clockwise).
 // Text reads bottom-to-top, with letters facing left.
-func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness int) {
+func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -636,7 +805,7 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 		Dst:  tmpImg,
 		Src:  image.NewUniform(col),
 		Face: face,
-		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent)},
+		Dot:  fixed.Point26_6{X: fixed.I(0), Y: fixed.I(ascent + baselineAdjust)},
 	}
 
 	// Draw each character, using CJK fallback when needed
@@ -647,19 +816,24 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 		}
 		drawer.Face = currentFace
 
-		// Draw with synthetic bold
 		startDot := drawer.Dot
-		drawer.DrawString(string(r))
+		adv, _ := currentFace.GlyphAdvance(r)
 
-		if boldness > 0 {
-			nextDot := drawer.Dot
-			for b := 1; b <= boldness; b++ {
-				drawer.Dot = startDot
-				drawer.Dot.X += fixed.I(b)
-				drawer.DrawString(string(r))
+		for pass := 0; pass <= inkGain; pass++ {
+			drawer.Dot = startDot
+			drawer.DrawString(string(r))
+
+			if boldness > 0 {
+				for b := 1; b <= boldness; b++ {
+					drawer.Dot = startDot
+					drawer.Dot.X += fixed.I(b)
+					drawer.DrawString(string(r))
+				}
 			}
-			drawer.Dot = nextDot
 		}
+
+		drawer.Dot = startDot
+		drawer.Dot.X += adv
 	}
 
 	// Scale horizontally if needed
@@ -678,7 +852,8 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 				destX := x + ty
 				destY := y + scaledWidth - 1 - tx
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
-					img.Set(destX, destY, c)
+					dst := img.RGBAAt(destX, destY)
+					img.Set(destX, destY, blendTextPixel(dst, c, reverse))
 				}
 			}
 		}

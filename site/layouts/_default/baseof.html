@@ -8,6 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ "favicon.svg" | relURL }}">
     {{ $style := resources.Get "sass/main.scss" | toCSS | minify }}
     <link rel="stylesheet" href="{{ $style.RelPermalink }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css" integrity="sha256-dABdfBfUoC8vJUBOwGVdm8L9qlMWaHTIfXt+7GnZCIo=" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     {{- if not hugo.IsServer }}
     <!-- Google tag (gtag.js) -->

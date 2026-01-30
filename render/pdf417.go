@@ -4,10 +4,10 @@ import (
 	"image"
 	"image/draw"
 
-	"github.com/boombuler/barcode/pdf417"
 	xdraw "golang.org/x/image/draw"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
+	zpdf417 "github.com/StirlingMarketingGroup/go-zpl/internal/pdf417"
 )
 
 // drawPDF417 renders a PDF417 barcode at the current position using the canvas barcode module width.
@@ -24,7 +24,7 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 
 	// Encode the PDF417
 	// The pdf417 library uses security level 0-8 like ZPL
-	code, err := pdf417.Encode(bc.Data, byte(bc.SecurityLevel))
+	code, err := zpdf417.EncodeWithDimensions(bc.Data, byte(bc.SecurityLevel), bc.DataColumns, bc.Rows)
 	if err != nil {
 		// Silently skip if encoding fails
 		return
@@ -46,36 +46,14 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 		rowHeight = moduleWidth * 3 // Default aspect ratio
 	}
 
-	// Calculate target width
-	// If DataColumns is specified, calculate expected width based on PDF417 structure:
-	// - Start pattern: 17 modules
-	// - Left row indicator: 17 modules
-	// - Data columns: N × 17 modules
-	// - Right row indicator: 17 modules
-	// - Stop pattern: 18 modules
-	// Total = 69 + (N × 17) modules
-	var targetWidth int
-	if bc.DataColumns > 0 {
-		expectedModules := 69 + (bc.DataColumns * 17)
-		targetWidth = expectedModules * moduleWidth
-	} else {
-		// No columns specified, scale by module width
-		targetWidth = origWidth * moduleWidth
-	}
+	// Calculate target width: scale by module width.
+	targetWidth := origWidth * moduleWidth
 
 	// Calculate target height
-	// The library outputs 1 pixel per symbol row.
-	// The ZPL row height parameter specifies dots per row, but Labelary and real
-	// Zebra printers use a more compact row height (about 1.5x module width).
-	effectiveRowHeight := rowHeight
-	maxRowHeight := (moduleWidth * 3) / 2 // Cap at 1.5x module width (matches Labelary behavior)
-	if maxRowHeight < 1 {
-		maxRowHeight = 1
-	}
-	if effectiveRowHeight > maxRowHeight {
-		effectiveRowHeight = maxRowHeight
-	}
-	targetHeight := origHeight * effectiveRowHeight
+	// The pdf417 library renders each row at a fixed moduleHeight (currently 2).
+	// Convert ZPL rowHeight (dots per row) to the library's pixel rows.
+	const pdf417ModuleHeight = 2
+	targetHeight := (origHeight*rowHeight + pdf417ModuleHeight - 1) / pdf417ModuleHeight
 
 	// Scale the barcode using NearestNeighbor to stretch to exact dimensions
 	// The barcode.Scale function preserves aspect ratio and centers, which causes position issues

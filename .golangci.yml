@@ -29,6 +29,9 @@ linters:
         - performance
       disabled-checks:
         - hugeParam
+        - paramTypeCombine
+        - whyNoLint
+        - nestingReduce
     revive:
       rules:
         - name: blank-imports
@@ -62,6 +65,16 @@ linters:
       - path: examples/
         linters:
           - errcheck
+      # internal/pdf417 is derived from github.com/boombuler/barcode/pdf417 (MIT)
+      # and retains the original code style
+      - path: internal/pdf417/
+        linters:
+          - gocritic
+          - revive
+          - staticcheck
+          - errorlint
+          - unused
+          - unparam
 
 issues:
   max-issues-per-linter: 0

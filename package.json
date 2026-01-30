@@ -4,7 +4,7 @@
   "description": "Development scripts for go-zpl",
   "scripts": {
     "dev": "npm-run-all --parallel wasm:watch site:dev",
-    "site:dev": "cd site && hugo server --bind 0.0.0.0",
+    "site:dev": "cd site && hugo server --bind 0.0.0.0 -p 3000",
     "site:build": "cd site && hugo --minify",
     "wasm:build": "cd site/assets/go && GOOS=js GOARCH=wasm go build -o ../../static/lib.wasm .",
     "wasm:watch": "watchexec -e go -w . -w render --ignore site 'npm run wasm:build'",

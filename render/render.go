@@ -189,6 +189,7 @@ type canvas struct {
 	// Field state
 	fieldReverse   bool
 	fieldDirection zpl.Orientation // Default rotation for fields (^FW)
+	fieldBlock     *zpl.FieldBlock // ^FB applies to next field
 
 	// Barcode defaults (set by ^BY)
 	barcodeModuleWidth int
@@ -334,7 +335,8 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		// Comments are ignored
 
 	case *zpl.FieldBlock:
-		// Field blocks affect text wrapping - not yet implemented
+		// Applies to the next field
+		c.fieldBlock = v
 
 	case *zpl.CharacterSet:
 		// Character set selection - not yet implemented
@@ -360,11 +362,20 @@ func (c *canvas) drawPendingBarcode(data string) {
 
 	// Clear pending barcode
 	c.pendingBarcode = nil
+	// ^FB applies to a single field, clear after consuming ^FD for barcode
+	c.fieldBlock = nil
 }
 
 // drawText renders text at the current position using the current font settings.
 func (c *canvas) drawText(text string) {
-	if c.fontMgr == nil || text == "" {
+	if c.fontMgr == nil {
+		c.fieldReverse = false
+		c.fieldBlock = nil
+		return
+	}
+	if text == "" {
+		c.fieldReverse = false
+		c.fieldBlock = nil
 		return
 	}
 
@@ -381,11 +392,29 @@ func (c *canvas) drawText(text string) {
 		orient = c.fieldDirection
 	}
 
+	x := c.curX
+	y := c.curY
+
+	// Apply ^FB justification for the current field (single-line support)
+	if c.fieldBlock != nil && c.fieldBlock.Width > 0 && orient == zpl.OrientationNormal {
+		textWidth := c.fontMgr.measureTextWidth(text, c.currentFont, height, c.fontWidth)
+		if textWidth > 0 {
+			switch c.fieldBlock.Justification {
+			case zpl.JustifyRight:
+				x += c.fieldBlock.Width - textWidth
+			case zpl.JustifyCenter:
+				x += (c.fieldBlock.Width - textWidth) / 2
+			}
+		}
+	}
+
 	// Pass fontWidth directly - 0 means proportional (natural font width)
-	c.fontMgr.drawText(c.img, text, c.curX, c.curY, c.currentFont, height, c.fontWidth, orient, c.fieldReverse)
+	c.fontMgr.drawText(c.img, text, x, y, c.currentFont, height, c.fontWidth, orient, c.fieldReverse)
 
 	// Reset field reverse after drawing
 	c.fieldReverse = false
+	// ^FB applies to a single field, clear after drawing text
+	c.fieldBlock = nil
 }
 
 // drawBox renders a graphic box at the current position.

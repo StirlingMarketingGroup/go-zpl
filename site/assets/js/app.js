@@ -890,6 +890,65 @@ editorContainer.addEventListener('drop', handleDrop);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
+// Print functionality
+document.getElementById('print-btn').addEventListener('click', () => {
+    const preview = document.getElementById('preview');
+    if (!preview.src || preview.style.display === 'none') {
+        return;
+    }
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        // Fallback to regular print if popup blocked
+        window.print();
+        return;
+    }
+
+    const renderTimeEl = document.getElementById('render-time');
+    const dimensions = renderTimeEl.textContent.match(/^(\d+)x(\d+)/);
+    const dpi = parseInt(document.getElementById('dpi').value, 10);
+
+    // Calculate print size in inches
+    let widthInches = 4;
+    let heightInches = 6;
+    if (dimensions) {
+        widthInches = parseInt(dimensions[1], 10) / dpi;
+        heightInches = parseInt(dimensions[2], 10) / dpi;
+    }
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Print Label</title>
+            <style>
+                @page {
+                    size: ${widthInches}in ${heightInches}in;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+                img {
+                    width: ${widthInches}in;
+                    height: ${heightInches}in;
+                    object-fit: contain;
+                }
+            </style>
+        </head>
+        <body>
+            <img src="${preview.src}" onload="window.print(); window.close();">
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+});
+
 // Initialize
 initControls();
 initWasm();

@@ -190,6 +190,7 @@ type canvas struct {
 	fieldReverse   bool
 	fieldDirection zpl.Orientation // Default rotation for fields (^FW)
 	fieldBlock     *zpl.FieldBlock // ^FB applies to next field
+	useBaseline    bool            // true when position set by ^FT (baseline), false for ^FO (top-left)
 
 	// Barcode defaults (set by ^BY)
 	barcodeModuleWidth int
@@ -250,10 +251,12 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 	case *zpl.FieldOrigin:
 		c.curX = v.X + c.homeX
 		c.curY = v.Y + c.homeY
+		c.useBaseline = false
 
 	case *zpl.FieldTypeset:
 		c.curX = v.X + c.homeX
 		c.curY = v.Y + c.homeY
+		c.useBaseline = true
 
 	case *zpl.ScalableFont:
 		c.currentFont = v.Font
@@ -409,7 +412,7 @@ func (c *canvas) drawText(text string) {
 	}
 
 	// Pass fontWidth directly - 0 means proportional (natural font width)
-	c.fontMgr.drawText(c.img, text, x, y, c.currentFont, height, c.fontWidth, orient, c.fieldReverse)
+	c.fontMgr.drawText(c.img, text, x, y, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, c.useBaseline)
 
 	// Reset field reverse after drawing
 	c.fieldReverse = false
@@ -425,6 +428,26 @@ func (c *canvas) drawBox(box *zpl.GraphicBox) {
 	h := box.Height
 	t := box.Thickness
 	isWhite := box.Color == zpl.LineColorWhite
+
+	// Per ZPL spec: when width is 0, draw a vertical line using thickness as width
+	if w == 0 {
+		for dy := 0; dy < h; dy++ {
+			for dx := 0; dx < t; dx++ {
+				c.setPixel(x+dx, y+dy, isWhite)
+			}
+		}
+		return
+	}
+
+	// Per ZPL spec: when height is 0, draw a horizontal line using thickness as height
+	if h == 0 {
+		for dy := 0; dy < t; dy++ {
+			for dx := 0; dx < w; dx++ {
+				c.setPixel(x+dx, y+dy, isWhite)
+			}
+		}
+		return
+	}
 
 	// For filled boxes (thickness >= min dimension / 2)
 	if t >= w/2 || t >= h/2 {

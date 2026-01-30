@@ -33,6 +33,15 @@ func renderZPL(this js.Value, args []js.Value) interface{} {
 		ignoreLabelHome = args[4].Bool()
 	}
 
+	// Optional 6th argument: isBase64 (default false)
+	if len(args) >= 6 && !args[5].IsUndefined() && !args[5].IsNull() && args[5].Bool() {
+		decoded, err := base64.StdEncoding.DecodeString(zplData)
+		if err != nil {
+			return map[string]interface{}{"error": "base64 decode error: " + err.Error()}
+		}
+		zplData = string(decoded)
+	}
+
 	label, err := zpl.Parse(zplData)
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}

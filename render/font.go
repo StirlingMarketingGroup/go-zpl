@@ -295,7 +295,9 @@ func blendTextPixel(dst color.RGBA, src color.RGBA, reverse bool) color.RGBA {
 }
 
 // drawText renders text to the image at the given position.
-func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Font, height, width int, orient zpl.Orientation, reverse bool) {
+// When useBaseline is true (^FT), y is the text baseline.
+// When useBaseline is false (^FO), y is the top of the text.
+func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Font, height, width int, orient zpl.Orientation, reverse bool, useBaseline bool) {
 	if text == "" {
 		return
 	}
@@ -324,15 +326,15 @@ func (fm *fontManager) drawText(img *image.RGBA, text string, x, y int, f zpl.Fo
 	// Handle orientation by rendering to a temporary image then rotating
 	switch orient {
 	case zpl.OrientationNormal:
-		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
+		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust, useBaseline)
 	case zpl.OrientationRotated90:
-		fm.drawTextRotated90(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
+		fm.drawTextRotated90(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust, useBaseline)
 	case zpl.OrientationRotated180:
-		fm.drawTextRotated180(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
+		fm.drawTextRotated180(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust, useBaseline)
 	case zpl.OrientationRotated270:
-		fm.drawTextRotated270(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
+		fm.drawTextRotated270(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust, useBaseline)
 	default:
-		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust)
+		fm.drawTextNormal(img, face, text, x, y, height, scaleX, reverse, boldness, inkGain, baselineAdjust, useBaseline)
 	}
 }
 
@@ -397,7 +399,9 @@ func (fm *fontManager) measureTextWidth(text string, f zpl.Font, height, width i
 }
 
 // drawTextNormal draws text in normal orientation (0 degrees).
-func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
+// When useBaseline is true, y is the text baseline (^FT).
+// When useBaseline is false, y is the top of the text (^FO).
+func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, useBaseline bool) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -437,6 +441,14 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 	col := color.RGBA{0, 0, 0, 255}
 	if reverse {
 		col = color.RGBA{255, 255, 255, 255}
+	}
+
+	// Calculate the top-left Y position for rendering
+	// When useBaseline is true (^FT), y is the baseline, so top = y - ascent
+	// When useBaseline is false (^FO), y is already the top
+	topY := y
+	if useBaseline {
+		topY = y - ascent
 	}
 
 	// If scaleX != 1.0, render to temp image at natural width, then scale
@@ -486,7 +498,7 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 				c := scaled.RGBAAt(tx, ty)
 				if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
 					destX := x + tx
-					destY := y + ty
+					destY := topY + ty
 					if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
 						dst := img.RGBAAt(destX, destY)
 						img.Set(destX, destY, blendTextPixel(dst, c, reverse))
@@ -496,7 +508,7 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 		}
 	} else {
 		// No scaling needed, draw directly
-		baselineY := y + ascent + baselineAdjust
+		baselineY := topY + ascent + baselineAdjust
 		drawer := &font.Drawer{
 			Dst:  img,
 			Src:  image.NewUniform(col),
@@ -535,7 +547,7 @@ func (fm *fontManager) drawTextNormal(img *image.RGBA, face font.Face, text stri
 
 // drawTextRotated90 draws text rotated 90 degrees clockwise.
 // Text reads top-to-bottom, with letters facing right.
-func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
+func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, _ bool) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -645,7 +657,7 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 }
 
 // drawTextRotated180 draws text rotated 180 degrees.
-func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
+func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, _ bool) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -753,7 +765,7 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 
 // drawTextRotated270 draws text rotated 270 degrees clockwise (90 counter-clockwise).
 // Text reads bottom-to-top, with letters facing left.
-func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int) {
+func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, _ bool) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 

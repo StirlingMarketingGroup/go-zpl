@@ -493,19 +493,22 @@ END:VCARD^FS
     uspsDomestic: {
         width: 4,
         height: 6,
-        file: 'examples/usps_domestic.zpl'
+        file: 'examples/usps_domestic.zpl.b64',
+        isBase64: true
     },
 
     uspsApo: {
         width: 4,
         height: 6,
-        file: 'examples/usps_apo.zpl'
+        file: 'examples/usps_apo.zpl.b64',
+        isBase64: true
     },
 
     uspsIntl: {
         width: 4,
         height: 6,
-        file: 'examples/usps_intl.zpl'
+        file: 'examples/usps_intl.zpl.b64',
+        isBase64: true
     },
 };
 
@@ -525,13 +528,15 @@ function loadState() {
 // Save state to localStorage
 function saveState() {
     try {
+        const zplContent = editor ? editor.getValue() : defaultZPL;
         const state = {
             dpi: document.getElementById('dpi').value,
             width: document.getElementById('width').value,
             height: document.getElementById('height').value,
             unit: document.getElementById('unit').value,
             ignoreLabelHome: document.getElementById('ignore-label-home').checked,
-            zpl: editor ? editor.getValue() : defaultZPL,
+            // Store ZPL as base64 to preserve binary data
+            zplBase64: btoa(zplContent),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
@@ -644,7 +649,15 @@ require(['vs/editor/editor.main'], function () {
 
     // Load saved state (default to UPS Import Control example)
     const saved = loadState();
-    const initialZPL = saved?.zpl || examples.ups.zpl;
+    // Decode base64 if present, fall back to old format or default
+    let initialZPL;
+    if (saved?.zplBase64) {
+        initialZPL = atob(saved.zplBase64);
+    } else if (saved?.zpl) {
+        initialZPL = saved.zpl; // Legacy format
+    } else {
+        initialZPL = examples.ups.zpl;
+    }
 
     // Create editor
     editor = monaco.editor.create(document.getElementById('editor'), {
@@ -710,7 +723,10 @@ function render() {
 
     try {
         const ignoreLabelHome = document.getElementById('ignore-label-home').checked;
-        const result = window.renderZPL(zpl, dpi, dims.width, dims.height, ignoreLabelHome);
+        // Always encode as base64 for WASM (preserves binary data through JS->Go transition)
+        // Latin-1 string to base64: btoa() works because Latin-1 chars are all <= 255
+        const base64Data = btoa(zpl);
+        const result = window.renderZPL(base64Data, dpi, dims.width, dims.height, ignoreLabelHome, true);
         const elapsed = (performance.now() - startTime).toFixed(1);
 
         if (result.error) {
@@ -788,7 +804,18 @@ document.getElementById('example').addEventListener('change', async () => {
         if (example.file) {
             try {
                 const response = await fetch(example.file);
-                zpl = await response.text();
+                if (example.isBase64) {
+                    // Fetch base64, decode to binary, convert to Latin-1 string
+                    const base64 = await response.text();
+                    const binaryString = atob(base64);
+                    // binaryString is already a Latin-1 string (each char = one byte)
+                    zpl = binaryString;
+                } else {
+                    // For non-binary files, use ArrayBuffer + Latin-1 decoder
+                    const buffer = await response.arrayBuffer();
+                    const decoder = new TextDecoder('iso-8859-1');
+                    zpl = decoder.decode(buffer);
+                }
             } catch (e) {
                 console.error('Failed to fetch example:', e);
                 return;
@@ -903,11 +930,14 @@ function handleDrop(e) {
         const reader = new FileReader();
         reader.onload = function (event) {
             if (editor) {
-                editor.setValue(event.target.result);
+                // Use Latin-1 decoder to preserve binary data (1:1 byte mapping)
+                const decoder = new TextDecoder('iso-8859-1');
+                const content = decoder.decode(event.target.result);
+                editor.setValue(content);
                 saveState();
             }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     }
 }
 

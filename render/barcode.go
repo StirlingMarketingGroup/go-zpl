@@ -597,7 +597,7 @@ func (c *canvas) drawBarcode128(bc *zpl.BarcodeCode128, moduleWidth int) {
 
 		// Center the text under the barcode
 		textX := x + (barcodeWidth-estimatedTextWidth)/2
-		c.fontMgr.drawText(c.img, bc.Data, textX, textY, zpl.FontA, textHeight, textWidth, zpl.OrientationNormal, false)
+		c.fontMgr.drawText(c.img, bc.Data, textX, textY, zpl.FontA, textHeight, textWidth, zpl.OrientationNormal, false, false)
 	}
 }
 

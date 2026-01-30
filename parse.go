@@ -223,6 +223,21 @@ func (p *parser) readParams() []string {
 	return params
 }
 
+// readIntParam reads a numeric parameter from the current position,
+// stopping at comma, ^, ~, or end of input. Returns 0 if empty or invalid.
+func (p *parser) readIntParam() int {
+	var sb strings.Builder
+	for p.pos < len(p.input) {
+		ch := p.input[p.pos]
+		if ch == ',' || ch == '^' || ch == '~' || ch == '\r' || ch == '\n' {
+			break
+		}
+		sb.WriteByte(ch)
+		p.pos++
+	}
+	return parseInt(sb.String(), 0)
+}
+
 func (p *parser) skipToNextCommand() {
 	for p.pos < len(p.input) {
 		ch := p.input[p.pos]
@@ -894,13 +909,48 @@ func (p *parser) parseGraphicEllipse() error {
 }
 
 func (p *parser) parseGraphicField() error {
-	params := p.readParams()
+	// For binary format, we need to handle parameters specially because binary data
+	// can contain ^ characters. Read the first 4 parameters manually, then handle
+	// the data based on format.
+
+	// Read format character (A, B, or C)
 	format := GraphicFieldASCII
-	if getParam(params, 0) != "" {
-		format = GraphicFieldFormat(getParam(params, 0)[0])
+	if p.pos < len(p.input) && p.input[p.pos] != ',' {
+		format = GraphicFieldFormat(p.input[p.pos])
+		p.pos++
 	}
-	dataBytes := parseInt(getParam(params, 1), 0)   // Total bytes in the data
-	bytesPerRow := parseInt(getParam(params, 3), 1) // Bytes per row
+
+	// Skip comma after format
+	if p.pos < len(p.input) && p.input[p.pos] == ',' {
+		p.pos++
+	}
+
+	// Read dataBytes (param 1)
+	dataBytes := p.readIntParam()
+
+	// Skip comma
+	if p.pos < len(p.input) && p.input[p.pos] == ',' {
+		p.pos++
+	}
+
+	// Read totalBytes (param 2) - we don't use this but need to skip it
+	p.readIntParam()
+
+	// Skip comma
+	if p.pos < len(p.input) && p.input[p.pos] == ',' {
+		p.pos++
+	}
+
+	// Read bytesPerRow (param 3)
+	bytesPerRow := p.readIntParam()
+	if bytesPerRow == 0 {
+		bytesPerRow = 1
+	}
+
+	// Skip comma before data
+	if p.pos < len(p.input) && p.input[p.pos] == ',' {
+		p.pos++
+	}
 
 	switch format {
 	case GraphicFieldBinary:
@@ -909,7 +959,7 @@ func (p *parser) parseGraphicField() error {
 			return nil
 		}
 
-		// Read the binary data directly
+		// Read the binary data directly - do NOT stop at ^ or any other character
 		binaryData := make([]byte, 0, dataBytes)
 		for p.pos < len(p.input) && len(binaryData) < dataBytes {
 			binaryData = append(binaryData, p.input[p.pos])
@@ -927,14 +977,8 @@ func (p *parser) parseGraphicField() error {
 		}
 
 	case GraphicFieldASCII:
-		// ASCII format: read hex characters
-		// Remaining data is the hex string (may span multiple lines)
+		// ASCII format: read hex characters until ^FS or next command
 		var data strings.Builder
-		if len(params) > 4 {
-			data.WriteString(getParam(params, 4))
-		}
-
-		// Continue reading hex data until ^FS or next command
 		for p.pos < len(p.input) {
 			if strings.HasPrefix(p.input[p.pos:], "^FS") {
 				p.pos += 3

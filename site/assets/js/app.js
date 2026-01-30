@@ -493,193 +493,19 @@ END:VCARD^FS
     uspsDomestic: {
         width: 4,
         height: 6,
-        zpl: `^XA
-^PW812
-^POI
-
-^FX USPS Priority Mail Domestic Label
-^FX Top section - Postage indicia area
-^FO203,0^GB0,203,2^FS
-^FT41,185^A0N,180,0^FDP^FS
-
-^FT218,27^A0N,25,0^FDUS POSTAGE & FEES PAID^FS
-^FT218,52^A0N,19,0^FD5 LB PRIORITY MAIL RATE^FS
-^FT218,75^A0N,19,0^FDZONE 5^FS
-^FT218,90^A0N,19,0^FDCommercial^FS
-
-^FX Date and tracking info (right side)
-^FT631,49^FB132,1,0,R,0^A0N,19,0^FD063S0014950565^FS
-^FT681,186^FB86,1,0,R,0^A0N,19,0^FD01/30/2026^FS
-
-^FX Horizontal dividers
-^FO0,203^GB774,0,2^FS
-^FO0,284^GB774,0,2^FS
-
-^FX Service banner
-^FT35,269^A0N,64,0^FH_^FDUSPS PRIORITY MAIL _AE^FS
-
-^FX Sender address
-^FT26,325^A0N,38,0^FDTest Sender^FS
-^FT26,365^A0N,38,0^FDSMG Test Company^FS
-^FT26,404^A0N,38,0^FD4301 Metric Dr^FS
-^FT26,444^A0N,38,0^FDWinter Park FL 32792-6831^FS
-
-^FX Ship To label
-^FT25,521^A0N,25,0^FDSHIP^FS
-^FT25,553^A0N,25,0^FDTO:^FS
-
-^FX Recipient address
-^FT132,531^A0N,38,0^FDTEST RECIPIENT^FS
-^FT132,576^A0N,38,0^FD1600 PENNSYLVANIA AVENUE NW^FS
-^FT132,621^A0N,38,0^FDWASHINGTON DC 20500-0005^FS
-
-^FX Package count
-^FT683,332^FB76,1,0,R,0^A0N,39,0^FD0003^FS
-
-^FX Barcode section dividers
-^FO0,767^GB774,0,13^FS
-^FO0,1091^GB774,0,13^FS
-
-^FX Tracking label
-^FT140,829^A0N,38,0^FDUSPS SIGNATURE TRACKING #^FS
-
-^FX Tracking number
-^FT153,1071^A0N,38,0^FD9410 8501 0579 5000 4004 79^FS
-
-^XZ`
+        file: 'examples/usps_domestic.zpl'
     },
 
     uspsApo: {
         width: 4,
         height: 6,
-        zpl: `^XA
-^PW812
-^POI
-
-^FX USPS APO/Military Mail Label (Rotated 90 degrees)
-^FX Note: This uses A0B for 90-degree rotated text
-
-^FX Border
-^FO1,0^GB776,1219,2^FS
-
-^FX Section dividers
-^FO2,1049^GB751,0,6^FS
-^FO2,1212^GB751,0,6^FS
-^FO2,729^GB750,0,2^FS
-^FO188,2^GB0,729,2^FS
-^FO521,2^GB0,729,2^FS
-^FO441,2^GB0,729,2^FS
-^FO751,2^GB0,1216,2^FS
-
-^FX Customs declaration header (rotated)
-^FT26,1017^A0B,18,0^FDCN22 - CUSTOMS DECLARATION^FS
-
-^FX TO label
-^FT335,717^A0B,43,0^FDTO^FS
-
-^FX Recipient (military address)
-^FT289,647^A0B,39,0^FDSGT JOHN SMITH^FS
-^FT334,647^A0B,39,0^FDPSC 1 BOX 1234^FS
-^FT380,647^A0B,39,0^FDAPO AE 09009-0013^FS
-
-^FX FROM labels
-^FT57,728^A0B,21,0^FDF^FS
-^FT84,729^A0B,21,0^FDR^FS
-^FT111,729^A0B,21,0^FDO^FS
-^FT138,730^A0B,21,0^FDM^FS
-
-^FX Sender
-^FT76,709^A0B,21,0^FDTest Sender^FS
-^FT101,709^A0B,21,0^FDSMG Test Company^FS
-^FT126,709^A0B,21,0^FD4301 Metric Dr^FS
-^FT151,709^A0B,21,0^FDWinter Park FL 32792-6831^FS
-
-^FX Priority indicator
-^FT130,457^A0B,90,0^FDP^FS
-
-^FX Mail class
-^FT656,612^A0B,35,0^FDOverseas Military/Diplomatic Mail^FS
-
-^FX Customs - category
-^FT94,1045^A0B,17,0^FDCategory of Item:^FS
-^FT94,922^A0B,17,0^FDOther: merchandise^FS
-
-^FX Weight
-^FT511,550^A0B,22,0^FD5.0 lbs^FS
-
-^FX Tracking number (inverted/rotated)
-^FT568,1057^A0I,31,0^FD9405 5501 0579 6017 6694 67^FS
-
-^FX Date and signature
-^FT723,1045^A0B,19,0^FDSender's Signature and Date^FS
-^FT740,1045^A0B,15,0^FDTest Sender^FS
-^FT744,804^A0B,15,0^FD01/30/2026^FS
-
-^XZ`
+        file: 'examples/usps_apo.zpl'
     },
 
     uspsIntl: {
         width: 4,
         height: 6,
-        zpl: `^XA
-^PW812
-^POI
-
-^FX USPS Priority Mail International Label
-^FX Top section - Postage indicia
-^FO203,0^GB0,203,2^FS
-^FT41,185^A0N,180,0^FDP^FS
-
-^FT218,27^A0N,25,0^FDUS POSTAGE & FEES PAID^FS
-^FT218,52^A0N,19,0^FD5 LB PRIORITY MAIL RATE^FS
-^FT218,75^A0N,19,0^FDZONE 5^FS
-^FT218,90^A0N,19,0^FDCommercial^FS
-
-^FX Date (right side)
-^FT681,186^FB86,1,0,R,0^A0N,19,0^FD01/30/2026^FS
-
-^FX Horizontal dividers
-^FO0,203^GB774,0,2^FS
-^FO0,284^GB774,0,2^FS
-
-^FX Service banner
-^FT35,269^A0N,64,0^FH_^FDUSPS PRIORITY MAIL _AE^FS
-
-^FX Sender address
-^FT26,312^A0N,25,0^FDTest Sender^FS
-^FT26,336^A0N,25,0^FDSMG Test Company^FS
-^FT26,361^A0N,25,0^FD4301 Metric Dr^FS
-^FT26,385^A0N,25,0^FDWinter Park FL 32792-6831^FS
-
-^FX Recipient (international forwarding address)
-^FT132,521^A0N,25,0^FDTEST INTERNATIONAL^FS
-^FT132,551^A0N,25,0^FDc/o GlobalPost Processing Facility^FS
-^FT132,580^A0N,25,0^FD560 Huyler St.^FS
-^FT132,609^A0N,25,0^FD#3548^FS
-^FT132,638^A0N,25,0^FDS. Hackensack NJ 07606-3548^FS
-
-^FX Package count
-^FT683,332^FB76,1,0,R,0^A0N,39,0^FD0003^FS
-
-^FX Barcode section dividers
-^FO0,670^GB774,0,13^FS
-^FO0,994^GB774,0,13^FS
-
-^FX Tracking label
-^FT239,732^A0N,38,0^FDUSPS TRACKING #^FS
-
-^FX Tracking number
-^FT153,975^A0N,38,0^FD9405 5501 0549 5018 1264 35^FS
-
-^FX International tracking number
-^FT558,1212^A0N,19,0^FDINT'L #:^FS
-^FT634,1212^A0N,19,0^FDCY148078673US^FS
-
-^FX Destination info
-^FT212,1180^FB543,1,0,R,0^A0N,26,0^FDTEST INTERNATIONAL CANADIAN TEST CO ON CA^FS
-^FT591,1146^FB163,1,0,R,0^A0N,19,0^FDORDER REFERENCE:^FS
-
-^XZ`
+        file: 'examples/usps_intl.zpl'
     },
 };
 
@@ -952,13 +778,27 @@ function initControls() {
 }
 
 // Control change handlers
-document.getElementById('example').addEventListener('change', () => {
+document.getElementById('example').addEventListener('change', async () => {
     const exampleKey = document.getElementById('example').value;
     if (exampleKey && examples[exampleKey] && editor) {
         const example = examples[exampleKey];
 
+        // Get ZPL content - either inline or fetch from file
+        let zpl;
+        if (example.file) {
+            try {
+                const response = await fetch(example.file);
+                zpl = await response.text();
+            } catch (e) {
+                console.error('Failed to fetch example:', e);
+                return;
+            }
+        } else {
+            zpl = example.zpl;
+        }
+
         // Set the ZPL content
-        editor.setValue(example.zpl);
+        editor.setValue(zpl);
 
         // Apply size presets if available
         if (example.width && example.height) {

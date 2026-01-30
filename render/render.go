@@ -187,7 +187,8 @@ type canvas struct {
 	fontOrient  zpl.Orientation
 
 	// Field state
-	fieldReverse bool
+	fieldReverse   bool
+	fieldDirection zpl.Orientation // Default rotation for fields (^FW)
 
 	// Barcode defaults (set by ^BY)
 	barcodeModuleWidth int
@@ -231,6 +232,7 @@ func newCanvas(width, height int) (*canvas, error) {
 		fontHeight:         30,
 		fontWidth:          0, // Zero means proportional width
 		fontOrient:         zpl.OrientationNormal,
+		fieldDirection:     zpl.OrientationNormal,
 		barcodeModuleWidth: 2, // Default module width
 		barcodeHeight:      100,
 	}, nil
@@ -273,6 +275,9 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 
 	case *zpl.FieldReverse:
 		c.fieldReverse = true
+
+	case *zpl.FieldDirection:
+		c.fieldDirection = v.Orientation
 
 	case *zpl.GraphicBox:
 		c.drawBox(v)
@@ -368,8 +373,16 @@ func (c *canvas) drawText(text string) {
 		height = 30
 	}
 
+	// Determine effective orientation:
+	// - If font specifies a rotation (^A0R, etc.), use that
+	// - Otherwise, use the field direction (^FW)
+	orient := c.fontOrient
+	if orient == zpl.OrientationNormal && c.fieldDirection != zpl.OrientationNormal {
+		orient = c.fieldDirection
+	}
+
 	// Pass fontWidth directly - 0 means proportional (natural font width)
-	c.fontMgr.drawText(c.img, text, c.curX, c.curY, c.currentFont, height, c.fontWidth, c.fontOrient, c.fieldReverse)
+	c.fontMgr.drawText(c.img, text, c.curX, c.curY, c.currentFont, height, c.fontWidth, orient, c.fieldReverse)
 
 	// Reset field reverse after drawing
 	c.fieldReverse = false

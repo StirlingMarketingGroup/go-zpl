@@ -93,6 +93,8 @@ func (p *parser) parseCaretCommand() error {
 		// Field separator - nothing to do
 	case "FR":
 		p.label.Add(NewFieldReverse())
+	case "FW":
+		return p.parseFieldDirection()
 	case "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9",
 		"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
 		"AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
@@ -270,6 +272,16 @@ func (p *parser) parseFieldTypeset() error {
 	return nil
 }
 
+func (p *parser) parseFieldDirection() error {
+	params := p.readParams()
+	orient := OrientationNormal
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	p.label.Add(NewFieldDirection(orient))
+	return nil
+}
+
 func (p *parser) parseFieldData() error {
 	// Read until ^FS
 	data := ""
@@ -316,7 +328,9 @@ func (p *parser) parseScalableFont(cmd string) error {
 		case 'B':
 			defaultHeight, defaultWidth = 11, 7
 		case 'C', 'D':
-			defaultHeight, defaultWidth = 18, 10
+			// Spec says 18x10, but real Zebra output is wider (~18x20)
+			// We also apply synthetic horizontal bold to thicken strokes
+			defaultHeight, defaultWidth = 18, 20
 		case 'E':
 			defaultHeight, defaultWidth = 28, 15
 		case 'F':

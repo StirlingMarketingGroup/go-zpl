@@ -153,7 +153,11 @@ var code128CValues = map[string]int{
 
 // Code 128 special codes
 const (
+	code128CodeA  = 101 // Switch to Subset A
 	code128CodeB  = 100 // Switch to Subset B
+	code128CodeC  = 99  // Switch to Subset C
+	code128FNC1   = 102 // FNC1
+	code128StartA = 103 // Start A
 	code128StartB = 104 // Start B
 	code128StartC = 105 // Start C
 )
@@ -358,28 +362,160 @@ func encodeCode128C(data string) []int {
 	return values
 }
 
+// encodeCode128WithEscapes handles ZPL escape sequences in Code 128 data
+// ZPL escape sequences start with '>':
+//
+//	>; - Switch to/start with Code C
+//	>: - Switch to/start with Code A
+//	>5 - FNC1
+//	>6 - FNC2
+//	>7 - FNC3
+//	>8 - FNC4
+//	>> - Literal '>' character
+func encodeCode128WithEscapes(data string) []int {
+	if data == "" {
+		return []int{}
+	}
+
+	var values []int
+	currentSubset := byte('B') // Default to Subset B
+	started := false
+
+	i := 0
+	for i < len(data) {
+		// Check for escape sequence
+		if data[i] == '>' && i+1 < len(data) {
+			switch data[i+1] {
+			case ';': // Code C
+				if !started {
+					values = append(values, code128StartC)
+					currentSubset = 'C'
+					started = true
+				} else if currentSubset != 'C' {
+					values = append(values, code128CodeC)
+					currentSubset = 'C'
+				}
+				i += 2
+				continue
+			case ':': // Code A
+				if !started {
+					values = append(values, code128StartA)
+					currentSubset = 'A'
+					started = true
+				} else if currentSubset != 'A' {
+					values = append(values, code128CodeA)
+					currentSubset = 'A'
+				}
+				i += 2
+				continue
+			case '5': // FNC1
+				if !started {
+					values = append(values, code128StartC, code128FNC1) // FNC1 often used with GS1/Code C
+					currentSubset = 'C'
+					started = true
+				} else {
+					values = append(values, code128FNC1)
+				}
+				i += 2
+				continue
+			case '>': // Literal '>'
+				i++ // Skip first '>', process second as normal character
+			}
+		}
+
+		// Start with default subset if not started
+		if !started {
+			values = append(values, code128StartB)
+			currentSubset = 'B'
+			started = true
+		}
+
+		// Encode character based on current subset
+		switch currentSubset {
+		case 'C':
+			// Code C encodes digit pairs
+			if i+1 < len(data) && isDigit(rune(data[i])) && isDigit(rune(data[i+1])) {
+				pair := data[i : i+2]
+				if val, ok := code128CValues[pair]; ok {
+					values = append(values, val)
+				}
+				i += 2
+			} else {
+				// Can't encode as pair, switch to B
+				values = append(values, code128CodeB)
+				currentSubset = 'B'
+				// Don't advance i, re-process in Subset B
+			}
+		case 'B':
+			if val, ok := code128BValues[rune(data[i])]; ok {
+				values = append(values, val)
+			}
+			i++
+		case 'A':
+			// Subset A is similar to B but with different character mapping
+			// For simplicity, use B values for printable ASCII
+			if val, ok := code128BValues[rune(data[i])]; ok {
+				values = append(values, val)
+			}
+			i++
+		}
+	}
+
+	if len(values) == 0 {
+		return []int{}
+	}
+
+	// Calculate check digit
+	sum := values[0] // Start code
+	for j := 1; j < len(values); j++ {
+		sum += j * values[j]
+	}
+	checkDigit := sum % 103
+	values = append(values, checkDigit)
+
+	return values
+}
+
 // drawBarcode128 renders a Code 128 barcode on the canvas
 func (c *canvas) drawBarcode128(bc *zpl.BarcodeCode128, moduleWidth int) {
 	if bc.Data == "" {
 		return
 	}
 
-	// Select encoding based on mode
-	// Mode 'A' = Auto mode (optimize with Subset C for numeric runs)
-	// Mode 'N', 'B', or unspecified = Subset B (standard behavior)
-	// Mode 'C' = Subset C only (numeric pairs)
+	// Check if data contains ZPL escape sequences (starts with > followed by special char)
+	hasEscapes := false
+	for i := 0; i < len(bc.Data)-1; i++ {
+		if bc.Data[i] == '>' {
+			next := bc.Data[i+1]
+			if next == ';' || next == ':' || next == '5' || next == '6' || next == '7' || next == '8' || next == '>' {
+				hasEscapes = true
+				break
+			}
+		}
+	}
+
+	// Select encoding based on escape sequences and mode
+	// If data contains escape sequences (>;, >:, etc.), use escape-aware encoder
+	// Otherwise use mode-based selection:
+	//   Mode 'A' = Auto mode (optimize with Subset C for numeric runs)
+	//   Mode 'N', 'B', or unspecified = Subset B (standard behavior)
+	//   Mode 'C' = Subset C only (numeric pairs)
 	var values []int
-	switch bc.Mode {
-	case zpl.Code128SubsetA: // 'A' is actually Auto mode in ZPL
-		values = encodeCode128Auto(bc.Data)
-	case zpl.Code128SubsetC:
-		values = encodeCode128C(bc.Data)
-		if values == nil {
-			// Fall back to Subset B if data isn't valid for Subset C
+	if hasEscapes {
+		values = encodeCode128WithEscapes(bc.Data)
+	} else {
+		switch bc.Mode {
+		case zpl.Code128SubsetA: // 'A' is actually Auto mode in ZPL
+			values = encodeCode128Auto(bc.Data)
+		case zpl.Code128SubsetC:
+			values = encodeCode128C(bc.Data)
+			if values == nil {
+				// Fall back to Subset B if data isn't valid for Subset C
+				values = encodeCode128B(bc.Data)
+			}
+		default: // Mode N, B, or anything else uses Subset B
 			values = encodeCode128B(bc.Data)
 		}
-	default: // Mode N, B, or anything else uses Subset B
-		values = encodeCode128B(bc.Data)
 	}
 
 	// Calculate total width for positioning

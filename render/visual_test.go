@@ -38,10 +38,17 @@ var visualTestCases = []visualTestCase{
 		DPI:    zpl.DPI203,
 	},
 	{
-		Name:       "FedEx Ground",
+		Name:       "FedEx Domestic Ground",
 		Dir:        "fedex_ground",
-		WidthDots:  800,  // From ZPL ^PW800
-		HeightDots: 1200, // Standard FedEx label height
+		WidthDots:  812,  // Labelary output width (4" at 203dpi)
+		HeightDots: 1218, // Labelary output height (6" at 203dpi)
+		DPI:        zpl.DPI203,
+	},
+	{
+		Name:       "FedEx Domestic Express",
+		Dir:        "fedex_express_scanned",
+		WidthDots:  800,  // From ^PW800 in ZPL
+		HeightDots: 1200, // 4x6" at 203 DPI
 		DPI:        zpl.DPI203,
 	},
 }

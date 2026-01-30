@@ -61,6 +61,7 @@ Comprehensive task list for the go-zpl library.
 - [x] `^FS` - Field separator
 - [x] `^FB` - Field block (text wrapping, justification)
 - [ ] `^FP` - Field parameter (direction)
+- [x] `^FW` - Field direction (default rotation for subsequent fields)
 - [x] `^FR` - Field reverse print
 - [x] `^CI` - Character set selection
 
@@ -337,9 +338,9 @@ Comprehensive task list for the go-zpl library.
 
 ### Visual Regression Tests
 
-- [ ] Generate reference images from Labelary
-- [ ] Pixel-by-pixel comparison testing
-- [ ] Tolerance configuration for anti-aliasing differences
+- [x] Generate reference images (baseline images for regression detection)
+- [x] Pixel-by-pixel comparison testing
+- [x] Tolerance configuration for anti-aliasing/alignment differences
 - [ ] Test matrix: all fonts × all sizes × all rotations
 - [ ] Test matrix: all barcodes × common configurations
 

@@ -107,6 +107,28 @@ func (f *FieldReverse) WriteTo(w io.Writer) (int64, error) {
 	return int64(n), err
 }
 
+// FieldDirection represents a ^FW command for setting default field rotation.
+// This affects all subsequent fields until changed.
+type FieldDirection struct {
+	Orientation Orientation
+}
+
+// NewFieldDirection creates a new field direction command.
+func NewFieldDirection(orientation Orientation) *FieldDirection {
+	return &FieldDirection{Orientation: orientation}
+}
+
+// ZPL returns the ZPL representation.
+func (f *FieldDirection) ZPL() string {
+	return fmt.Sprintf("^FW%c", f.Orientation)
+}
+
+// WriteTo writes the ZPL to the writer.
+func (f *FieldDirection) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, f.ZPL())
+	return int64(n), err
+}
+
 // FieldBlock represents a ^FB command for text block formatting.
 type FieldBlock struct {
 	Width         int

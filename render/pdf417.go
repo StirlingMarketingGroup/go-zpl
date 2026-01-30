@@ -4,8 +4,8 @@ import (
 	"image"
 	"image/draw"
 
-	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/pdf417"
+	xdraw "golang.org/x/image/draw"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
 )
@@ -30,8 +30,7 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 		return
 	}
 
-	// Calculate target size
-	// The PDF417 library outputs 1 pixel per module
+	// Get library output dimensions
 	bounds := code.Bounds()
 	origWidth := bounds.Dx()
 	origHeight := bounds.Dy()
@@ -42,24 +41,49 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 	}
 
 	// Row height from ZPL ^B7 parameter (dots per row)
-	// PDF417 row height is typically moduleWidth * aspect ratio (usually 3)
 	rowHeight := bc.Height
 	if rowHeight < 1 {
 		rowHeight = moduleWidth * 3 // Default aspect ratio
 	}
 
-	// Calculate target dimensions
-	targetWidth := origWidth * moduleWidth
-	targetHeight := origHeight * rowHeight
-
-	// Scale the barcode
-	code, err = barcode.Scale(code, targetWidth, targetHeight)
-	if err != nil {
-		return
+	// Calculate target width
+	// If DataColumns is specified, calculate expected width based on PDF417 structure:
+	// - Start pattern: 17 modules
+	// - Left row indicator: 17 modules
+	// - Data columns: N × 17 modules
+	// - Right row indicator: 17 modules
+	// - Stop pattern: 18 modules
+	// Total = 69 + (N × 17) modules
+	var targetWidth int
+	if bc.DataColumns > 0 {
+		expectedModules := 69 + (bc.DataColumns * 17)
+		targetWidth = expectedModules * moduleWidth
+	} else {
+		// No columns specified, scale by module width
+		targetWidth = origWidth * moduleWidth
 	}
 
+	// Calculate target height
+	// The library outputs 1 pixel per symbol row.
+	// The ZPL row height parameter specifies dots per row, but Labelary and real
+	// Zebra printers use a more compact row height (about 1.5x module width).
+	effectiveRowHeight := rowHeight
+	maxRowHeight := (moduleWidth * 3) / 2 // Cap at 1.5x module width (matches Labelary behavior)
+	if maxRowHeight < 1 {
+		maxRowHeight = 1
+	}
+	if effectiveRowHeight > maxRowHeight {
+		effectiveRowHeight = maxRowHeight
+	}
+	targetHeight := origHeight * effectiveRowHeight
+
+	// Scale the barcode using NearestNeighbor to stretch to exact dimensions
+	// The barcode.Scale function preserves aspect ratio and centers, which causes position issues
+	scaledImg := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
+	xdraw.NearestNeighbor.Scale(scaledImg, scaledImg.Bounds(), code, code.Bounds(), xdraw.Over, nil)
+
 	// Get the scaled image
-	pdfImg := code
+	pdfImg := scaledImg
 
 	// Handle orientation by rotating the image if needed
 	var finalImg image.Image = pdfImg
@@ -75,6 +99,8 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 	// Draw onto canvas at current position
 	x := c.curX
 	y := c.curY
-	draw.Draw(c.img, image.Rect(x, y, x+finalImg.Bounds().Dx(), y+finalImg.Bounds().Dy()),
-		finalImg, image.Point{0, 0}, draw.Over)
+	srcBounds := finalImg.Bounds()
+	// Use srcBounds.Min as source point - the scaled image may have non-zero origin
+	draw.Draw(c.img, image.Rect(x, y, x+srcBounds.Dx(), y+srcBounds.Dy()),
+		finalImg, srcBounds.Min, draw.Over)
 }

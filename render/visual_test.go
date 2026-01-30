@@ -51,6 +51,27 @@ var visualTestCases = []visualTestCase{
 		HeightDots: 1200, // 4x6" at 203 DPI
 		DPI:        zpl.DPI203,
 	},
+	{
+		Name:       "USPS Priority Mail Domestic",
+		Dir:        "usps_domestic",
+		WidthDots:  812,  // From ^PW812 in ZPL
+		HeightDots: 1218, // 6" at 203 DPI
+		DPI:        zpl.DPI203,
+	},
+	{
+		Name:       "USPS APO Military",
+		Dir:        "usps_apo",
+		WidthDots:  812,  // From ^PW812 in ZPL
+		HeightDots: 1218, // 6" at 203 DPI
+		DPI:        zpl.DPI203,
+	},
+	{
+		Name:       "USPS Priority Mail International",
+		Dir:        "usps_intl",
+		WidthDots:  812,  // From ^PW812 in ZPL
+		HeightDots: 1218, // 6" at 203 DPI
+		DPI:        zpl.DPI203,
+	},
 }
 
 // TestVisualRegression compares our rendered output against our own baseline images.
@@ -128,8 +149,8 @@ func TestVisualRegression(t *testing.T) {
 			const maxDiffPercent = 0.1 // Allow tiny tolerance for floating point/platform differences
 			if diffPct > maxDiffPercent {
 				// Only save actual and diff images on failure to avoid dirtying workspace
-				actualPath := filepath.Join(baseDir, "actual.png")
-				if err := saveImage(ourImg, actualPath); err != nil {
+				renderPath := filepath.Join(baseDir, "render.png")
+				if err := saveImage(ourImg, renderPath); err != nil {
 					t.Logf("Warning: failed to save actual image: %v", err)
 				}
 				diffPath := filepath.Join(baseDir, "diff.png")
@@ -140,10 +161,10 @@ func TestVisualRegression(t *testing.T) {
 				}
 				t.Errorf("Visual regression detected: %.2f%% difference from baseline\n"+
 					"  Baseline: %s\n"+
-					"  Actual: %s\n"+
+					"  Render: %s\n"+
 					"  Diff: %s\n"+
 					"If this change is intentional, run: UPDATE_VISUAL_BASELINE=1 go test -run TestVisualRegression",
-					diffPct, baselinePath, actualPath, diffPath)
+					diffPct, baselinePath, renderPath, diffPath)
 			} else if diffPct > 0 {
 				t.Logf("Minor difference: %.4f%% (within tolerance)", diffPct)
 			}

@@ -20,6 +20,7 @@ Everything runs locally - there are no servers or external API calls. The librar
   - Graphics (boxes, circles, ellipses, diagonal lines)
   - Field blocks and text formatting
 - **ZPL parsing** - Parse existing ZPL strings into Label objects
+- **Multi-page labels** - Parse and render ZPL with multiple labels (e.g., USPS APO continuation sheets)
 - **Local rendering** - Render labels to PNG images without external services
 
 ## Installation
@@ -207,6 +208,13 @@ if err != nil {
 
 // Work with the parsed label
 fmt.Printf("Label has %d commands\n", len(label.Commands()))
+
+// For multi-page ZPL (multiple ^XA...^XZ blocks), use ParseAll:
+labels, err := zpl.ParseAll(multiPageZPL)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Parsed %d labels\n", len(labels))
 ```
 
 ### Rendering to Images

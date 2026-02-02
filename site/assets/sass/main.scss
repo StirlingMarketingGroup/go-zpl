@@ -190,15 +190,15 @@ header {
     #preview-container {
         display: none;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        align-items: start;
+        align-items: center;
         justify-items: center;
+        align-content: center;
         gap: 15px;
         height: 100%;
         padding: 1rem;
         min-width: 0;
         min-height: 0;
         overflow-y: auto;
-        align-content: start;
     }
 
     .preview-link {

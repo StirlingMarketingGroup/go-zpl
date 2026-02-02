@@ -5,28 +5,42 @@ import (
 	"strings"
 )
 
-// Parse parses a ZPL string and returns a Label with all commands.
+// Parse parses a ZPL string and returns the first Label.
+// For ZPL with multiple labels (multiple ^XA...^XZ blocks), use ParseAll.
 func Parse(zpl string) (*Label, error) {
-	p := &parser{
-		input: zpl,
-		pos:   0,
-		label: NewLabel(),
+	labels, err := ParseAll(zpl)
+	if err != nil {
+		return nil, err
 	}
-	return p.parse()
+	if len(labels) == 0 {
+		return NewLabel(), nil
+	}
+	return labels[0], nil
+}
+
+// ParseAll parses a ZPL string and returns all labels (one per ^XA...^XZ block).
+func ParseAll(zpl string) ([]*Label, error) {
+	p := &parser{
+		input:  zpl,
+		pos:    0,
+		labels: make([]*Label, 0),
+	}
+	return p.parseAll()
 }
 
 // parser holds the state for parsing ZPL.
 type parser struct {
-	input string
-	pos   int
-	label *Label
+	input  string
+	pos    int
+	label  *Label   // Current label being parsed
+	labels []*Label // All completed labels
 
 	// Current state
 	inFormat          bool // Inside ^XA...^XZ block
 	fieldHexIndicator rune // ^FH indicator for next ^FD/^FV
 }
 
-func (p *parser) parse() (*Label, error) {
+func (p *parser) parseAll() ([]*Label, error) {
 	for p.pos < len(p.input) {
 		// Skip whitespace and newlines
 		p.skipWhitespace()
@@ -51,7 +65,12 @@ func (p *parser) parse() (*Label, error) {
 		}
 	}
 
-	return p.label, nil
+	// If we have an unfinished label (no closing ^XZ), add it
+	if p.label != nil && len(p.label.Commands()) > 0 {
+		p.labels = append(p.labels, p.label)
+	}
+
+	return p.labels, nil
 }
 
 func (p *parser) skipWhitespace() {
@@ -80,8 +99,25 @@ func (p *parser) parseCaretCommand() error {
 	switch cmd {
 	case "XA":
 		p.inFormat = true
+		p.label = NewLabel()    // Start a new label
+		p.fieldHexIndicator = 0 // Reset state for new label
+		return nil
 	case "XZ":
 		p.inFormat = false
+		if p.label != nil {
+			p.labels = append(p.labels, p.label) // Save completed label
+			p.label = nil
+		}
+		return nil
+	}
+
+	// Skip commands outside ^XA...^XZ block
+	if p.label == nil {
+		p.skipToNextCommand()
+		return nil
+	}
+
+	switch cmd {
 	case "FO":
 		return p.parseFieldOrigin()
 	case "FT":

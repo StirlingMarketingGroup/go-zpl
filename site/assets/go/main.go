@@ -42,22 +42,32 @@ func renderZPL(this js.Value, args []js.Value) interface{} {
 		zplData = string(decoded)
 	}
 
-	label, err := zpl.Parse(zplData)
+	labels, err := zpl.ParseAll(zplData)
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
 
+	if len(labels) == 0 {
+		return map[string]interface{}{"error": "no labels found in ZPL"}
+	}
+
 	renderer := render.New(dpi).WithSize(width, height).WithIgnoreLabelHome(ignoreLabelHome)
 
-	// Use RenderPNG for optimized paletted encoding (faster, smaller files)
-	var buf bytes.Buffer
-	if err := renderer.RenderPNG(label, &buf); err != nil {
-		return map[string]interface{}{"error": err.Error()}
+	// Render all labels to PNG
+	images := make([]interface{}, 0, len(labels))
+	for _, label := range labels {
+		var buf bytes.Buffer
+		if err := renderer.RenderPNG(label, &buf); err != nil {
+			return map[string]interface{}{"error": err.Error()}
+		}
+		images = append(images, base64.StdEncoding.EncodeToString(buf.Bytes()))
 	}
 
 	return map[string]interface{}{
-		"image":  base64.StdEncoding.EncodeToString(buf.Bytes()),
+		"images": images,
 		"width":  width,
 		"height": height,
+		// Keep backward compatibility - also return first image as "image"
+		"image": images[0],
 	}
 }

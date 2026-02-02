@@ -4,6 +4,21 @@ let editor;
 let renderTimeout;
 let wasmReady = false;
 
+// Safe base64 encode that handles both binary data and Unicode text
+// For ZPL with binary graphics, the string contains raw bytes (Latin1) which btoa handles directly
+// Only fall back to UTF-8 encoding if btoa fails (for actual Unicode text)
+function safeBase64Encode(str) {
+    try {
+        // Try direct btoa first - works for binary data and ASCII
+        return btoa(str);
+    } catch (e) {
+        // If btoa fails (non-Latin1 chars), use UTF-8 encoding
+        const bytes = new TextEncoder().encode(str);
+        const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+        return btoa(binString);
+    }
+}
+
 // Storage keys
 const STORAGE_KEY = 'zpl-renderer';
 
@@ -510,6 +525,13 @@ END:VCARD^FS
         file: 'examples/usps_intl.zpl.b64',
         isBase64: true
     },
+
+    uspsApoContinuation: {
+        width: 4,
+        height: 6,
+        file: 'examples/usps_apo_continuation.zpl.b64',
+        isBase64: true
+    },
 };
 
 // Load saved state from localStorage
@@ -536,7 +558,7 @@ function saveState() {
             unit: document.getElementById('unit').value,
             ignoreLabelHome: document.getElementById('ignore-label-home').checked,
             // Store ZPL as base64 to preserve binary data
-            zplBase64: btoa(zplContent),
+            zplBase64: safeBase64Encode(zplContent),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
@@ -716,7 +738,7 @@ function render() {
     const dims = getDimensionsInDots();
 
     const errorEl = document.getElementById('error');
-    const previewEl = document.getElementById('preview');
+    const previewContainer = document.getElementById('preview-container');
     const renderTimeEl = document.getElementById('render-time');
 
     const startTime = performance.now();
@@ -724,26 +746,66 @@ function render() {
     try {
         const ignoreLabelHome = document.getElementById('ignore-label-home').checked;
         // Always encode as base64 for WASM (preserves binary data through JS->Go transition)
-        // Latin-1 string to base64: btoa() works because Latin-1 chars are all <= 255
-        const base64Data = btoa(zpl);
+        // Use safeBase64Encode to handle any characters that Monaco might introduce
+        const base64Data = safeBase64Encode(zpl);
         const result = window.renderZPL(base64Data, dpi, dims.width, dims.height, ignoreLabelHome, true);
         const elapsed = (performance.now() - startTime).toFixed(1);
 
         if (result.error) {
             errorEl.textContent = result.error;
             errorEl.style.display = 'block';
-            previewEl.style.display = 'none';
+            previewContainer.style.display = 'none';
             renderTimeEl.textContent = '';
         } else {
             errorEl.style.display = 'none';
-            previewEl.src = 'data:image/png;base64,' + result.image;
-            previewEl.style.display = 'block';
-            renderTimeEl.textContent = `${result.width}x${result.height} rendered in ${elapsed}ms`;
+
+            // Clear previous images
+            previewContainer.innerHTML = '';
+
+            // Handle multiple pages
+            const images = result.images || [result.image];
+
+            images.forEach((imgData, index) => {
+                const imgSrc = 'data:image/png;base64,' + imgData;
+
+                // Wrap in Fancybox link for zoom
+                const link = document.createElement('a');
+                link.href = imgSrc;
+                link.className = 'preview-link';
+                link.setAttribute('data-fancybox', 'labels');
+                link.setAttribute('data-caption', `Page ${index + 1} of ${images.length}`);
+
+                const img = document.createElement('img');
+                img.src = imgSrc;
+                img.alt = `Page ${index + 1}`;
+                img.className = 'preview-image';
+
+                link.appendChild(img);
+                previewContainer.appendChild(link);
+            });
+
+            previewContainer.style.display = 'flex';
+
+            // Set max-height on images based on container size
+            const containerHeight = previewContainer.clientHeight - 32; // subtract padding
+            previewContainer.querySelectorAll('.preview-image').forEach(img => {
+                img.style.maxHeight = containerHeight + 'px';
+            });
+
+            // Rebind Fancybox to new elements
+            if (typeof Fancybox !== 'undefined') {
+                Fancybox.destroy();
+                Fancybox.bind('[data-fancybox]', {
+                    Thumbs: { type: 'classic' }
+                });
+            }
+            const pageText = images.length > 1 ? ` (${images.length} pages)` : '';
+            renderTimeEl.textContent = `${result.width}x${result.height} rendered in ${elapsed}ms${pageText}`;
         }
     } catch (err) {
         errorEl.textContent = 'Render error: ' + err.message;
         errorEl.style.display = 'block';
-        previewEl.style.display = 'none';
+        previewContainer.style.display = 'none';
         renderTimeEl.textContent = '';
     }
 }
@@ -954,8 +1016,9 @@ document.addEventListener('drop', (e) => e.preventDefault());
 
 // Print functionality
 document.getElementById('print-btn').addEventListener('click', () => {
-    const preview = document.getElementById('preview');
-    if (!preview.src || preview.style.display === 'none') {
+    const previewContainer = document.getElementById('preview-container');
+    const images = previewContainer.querySelectorAll('.preview-image');
+    if (images.length === 0 || previewContainer.style.display === 'none' || previewContainer.style.display === '') {
         return;
     }
 
@@ -979,6 +1042,15 @@ document.getElementById('print-btn').addEventListener('click', () => {
         heightInches = parseInt(dimensions[2], 10) / dpi;
     }
 
+    // Validate image sources are data URLs to prevent injection
+    const validImages = Array.from(images).filter(img =>
+        img.src.startsWith('data:image/png;base64,')
+    );
+    if (validImages.length === 0) return;
+
+    // Build image tags for all pages
+    const imageTags = validImages.map(img => `<img src="${img.src}">`).join('\n');
+
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -992,23 +1064,31 @@ document.getElementById('print-btn').addEventListener('click', () => {
                 body {
                     margin: 0;
                     padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
                 }
                 img {
                     width: ${widthInches}in;
                     height: ${heightInches}in;
                     object-fit: contain;
+                    display: block;
+                    page-break-after: always;
+                }
+                img:last-child {
+                    page-break-after: avoid;
                 }
             </style>
         </head>
         <body>
-            <img src="${preview.src}" onload="window.print(); window.close();">
+            ${imageTags}
         </body>
         </html>
     `);
     printWindow.document.close();
+
+    // Wait for all images to load before printing
+    printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+    };
 });
 
 // Initialize

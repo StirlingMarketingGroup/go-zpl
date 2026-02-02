@@ -9,6 +9,9 @@
     {{ $style := resources.Get "sass/main.scss" | toCSS | minify }}
     <link rel="stylesheet" href="{{ $style.RelPermalink }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css" integrity="sha256-dABdfBfUoC8vJUBOwGVdm8L9qlMWaHTIfXt+7GnZCIo=" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ "vendor/fancybox/fancybox.css" | relURL }}">
+    <!-- Fancybox MUST load before Monaco's RequireJS, otherwise AMD detection breaks global export -->
+    <script src="{{ "vendor/fancybox/fancybox.umd.js" | relURL }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     {{- if not hugo.IsServer }}
     <!-- Google tag (gtag.js) -->

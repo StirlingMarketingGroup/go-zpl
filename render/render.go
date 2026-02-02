@@ -101,6 +101,19 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 	return canvas.Image(), nil
 }
 
+// RenderAll renders multiple labels and returns an image for each.
+func (r *Renderer) RenderAll(labels []*zpl.Label) ([]image.Image, error) {
+	images := make([]image.Image, 0, len(labels))
+	for _, label := range labels {
+		img, err := r.Render(label)
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, img)
+	}
+	return images, nil
+}
+
 // RenderPNG renders the label and writes it as a PNG image to the writer.
 func (r *Renderer) RenderPNG(label *zpl.Label, w io.Writer) error {
 	img, err := r.Render(label)

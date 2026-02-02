@@ -791,7 +791,7 @@ function render() {
                 previewContainer.appendChild(link);
             });
 
-            previewContainer.style.display = 'flex';
+            previewContainer.style.display = 'grid';
 
             // Set max-height on images based on container size
             const containerHeight = previewContainer.clientHeight - 32; // subtract padding

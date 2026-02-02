@@ -189,19 +189,22 @@ header {
 
     #preview-container {
         display: none;
-        align-items: center;
-        justify-content: center;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        align-items: start;
+        justify-items: center;
         gap: 15px;
         height: 100%;
         padding: 1rem;
         min-width: 0;
         min-height: 0;
+        overflow-y: auto;
+        align-content: start;
     }
 
     .preview-link {
-        flex: 0 1 auto;
         min-width: 0;
         min-height: 0;
+        max-width: 100%;
     }
 
     .preview-image {

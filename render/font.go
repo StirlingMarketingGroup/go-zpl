@@ -640,23 +640,29 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 	scaledWidth := scaled.Bounds().Dx()
 
 	// Rotate 90 degrees clockwise: text goes DOWN the page
-	// Original (tx, ty) maps to destination where:
-	// - ty becomes X offset (left edge of text becomes top)
-	// - tx becomes Y offset (first char at top)
+	// First char at top, last char at bottom, letters face right
 	//
-	// For baseline positioning (^FT), y is the end of the text (baseline in rotated sense),
-	// so we need to offset by the text width to position correctly.
-	startY := y
-	if useBaseline {
-		startY = y - scaledWidth
-	}
-
+	// For baseline positioning (^FT):
+	// - x is where the baseline should be (baseline runs vertically on left side after rotation)
+	// - y is where the first character's baseline is, text extends downward
+	// For origin positioning (^FO), (x, y) is the top-left of bounding box.
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
 			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
-				destX := x + textHeight - 1 - ty
-				destY := startY + tx
+				var destX, destY int
+				if useBaseline {
+					// Baseline mode: x is the baseline position
+					// After 90° clockwise, baseline (at ty=ascent in temp) should be at x
+					// The descent area (ty > ascent) goes to the left of baseline
+					destX = x + ascent - ty
+					// y is start of text, extends downward
+					destY = y + tx
+				} else {
+					// Origin mode: (x, y) is top-left of bounding box
+					destX = x + textHeight - 1 - ty
+					destY = y + tx
+				}
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
 					dst := img.RGBAAt(destX, destY)
 					img.Set(destX, destY, blendTextPixel(dst, c, reverse))
@@ -667,7 +673,10 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 }
 
 // drawTextRotated180 draws text rotated 180 degrees.
-func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, _ bool) {
+// When useBaseline is true (^FT), (x, y) is the baseline of the first character,
+// which after 180° rotation appears at the right end of the text.
+// When useBaseline is false (^FO), (x, y) is the top-left of the bounding box.
+func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text string, x, y, height int, scaleX float64, reverse bool, boldness, inkGain int, baselineAdjust int, useBaseline bool) {
 	// Get CJK fallback face
 	cjkFace, _ := fm.getCJKFace(height)
 
@@ -757,13 +766,25 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 	}
 	scaledWidth := scaled.Bounds().Dx()
 
-	// Rotate 180 degrees: (x, y) -> (width - 1 - x, height - 1 - y)
+	// Rotate 180 degrees: text is upside-down, reading right-to-left
+	// For ^FT (useBaseline=true): (x, y) is the baseline of the first character,
+	// which after rotation is at the right end. Text extends leftward from x.
+	// For ^FO (useBaseline=false): (x, y) is the top-left, text extends rightward.
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
 			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
-				destX := x + scaledWidth - 1 - tx
-				destY := y + textHeight - 1 - ty
+				var destX, destY int
+				if useBaseline {
+					// Baseline mode: first char baseline at (x, y), text extends left
+					// The baseline in temp image is at ty=ascent, so adjust to place it at y
+					destX = x - tx
+					destY = y + ascent - ty
+				} else {
+					// Origin mode: top-left at (x, y), text extends right and down
+					destX = x + scaledWidth - 1 - tx
+					destY = y + textHeight - 1 - ty
+				}
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
 					dst := img.RGBAAt(destX, destY)
 					img.Set(destX, destY, blendTextPixel(dst, c, reverse))
@@ -870,20 +891,25 @@ func (fm *fontManager) drawTextRotated270(img *image.RGBA, face font.Face, text 
 	// Rotate 270 degrees clockwise (90 counter-clockwise): text goes UP the page
 	// First char at bottom, last char at top, letters face left
 	//
-	// For baseline positioning (^FT), y is where the text starts (first char),
-	// and text extends upward (toward lower Y).
-	// For origin positioning (^FO), y is the top-left of bounding box.
+	// For baseline positioning (^FT):
+	// - x is where the baseline should be (baseline runs vertically on right side after rotation)
+	// - y is where the first character starts, text extends upward
+	// For origin positioning (^FO), (x, y) is the top-left of bounding box.
 	for ty := 0; ty < textHeight; ty++ {
 		for tx := 0; tx < scaledWidth; tx++ {
 			c := scaled.RGBAAt(tx, ty)
 			if c.A > 0 && (c.R != bgCol.R || c.G != bgCol.G || c.B != bgCol.B) {
-				destX := x + ty
-				var destY int
+				var destX, destY int
 				if useBaseline {
-					// Baseline mode: y is start of text, extends upward
-					destY = y - tx
+					// Baseline mode: x is the baseline position
+					// The baseline in the temp image is at ty=ascent, so we offset by ascent
+					// to place the baseline at x
+					destX = x + ty - ascent
+					// y is start of text, extends upward (adjust by 2 for pixel-perfect alignment)
+					destY = y - tx - 2
 				} else {
-					// Origin mode: y is top of bounding box
+					// Origin mode: (x, y) is top-left of bounding box
+					destX = x + ty
 					destY = y + scaledWidth - 1 - tx
 				}
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {

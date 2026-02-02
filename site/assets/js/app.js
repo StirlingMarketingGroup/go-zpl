@@ -532,6 +532,13 @@ END:VCARD^FS
         file: 'examples/usps_apo_continuation.zpl.b64',
         isBase64: true
     },
+
+    fedexIntlExpressAwb: {
+        width: 4,
+        height: 6,
+        file: 'examples/fedex_intl_express_awb.zpl.b64',
+        isBase64: true
+    },
 };
 
 // Load saved state from localStorage

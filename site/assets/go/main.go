@@ -53,14 +53,18 @@ func renderZPL(this js.Value, args []js.Value) interface{} {
 
 	renderer := render.New(dpi).WithSize(width, height).WithIgnoreLabelHome(ignoreLabelHome)
 
-	// Render all labels to PNG
+	// Render all labels to PNG, respecting print quantity (^PQ)
 	images := make([]interface{}, 0, len(labels))
 	for _, label := range labels {
 		var buf bytes.Buffer
 		if err := renderer.RenderPNG(label, &buf); err != nil {
 			return map[string]interface{}{"error": err.Error()}
 		}
-		images = append(images, base64.StdEncoding.EncodeToString(buf.Bytes()))
+		imageData := base64.StdEncoding.EncodeToString(buf.Bytes())
+		// Add the image PrintQuantity times (^PQ command)
+		for i := 0; i < label.PrintQuantity(); i++ {
+			images = append(images, imageData)
+		}
 	}
 
 	return map[string]interface{}{

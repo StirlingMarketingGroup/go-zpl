@@ -179,8 +179,10 @@ func (p *parser) parseCaretCommand() error {
 		return p.parseBarcodePDF417()
 	case "BO":
 		return p.parseBarcodeAztec()
+	case "PQ":
+		return p.parsePrintQuantity()
 	// Commands we recognize but ignore for now
-	case "LR", "MN", "MF", "MC", "CV", "DN", "PQ", "B3":
+	case "LR", "MN", "MF", "MC", "CV", "DN", "B3":
 		p.skipToNextCommand()
 	default:
 		// Unknown command - skip to next command
@@ -371,6 +373,16 @@ func (p *parser) parseFieldData() error {
 	}
 	// ^FH applies to the current field only; reset after ^FD/^FV
 	p.fieldHexIndicator = 0
+	return nil
+}
+
+func (p *parser) parsePrintQuantity() error {
+	params := p.readParams()
+	quantity := parseInt(getParam(params, 0), 1)
+	if quantity < 1 {
+		quantity = 1
+	}
+	p.label.SetPrintQuantity(quantity, 0, 0, false)
 	return nil
 }
 

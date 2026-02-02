@@ -138,6 +138,14 @@ func (l *Label) Home() (x, y int) {
 	return l.homeX, l.homeY
 }
 
+// PrintQuantity returns the print quantity (^PQ) - how many copies to print.
+func (l *Label) PrintQuantity() int {
+	if l.printQuantity < 1 {
+		return 1
+	}
+	return l.printQuantity
+}
+
 // Commands returns a copy of the label's commands.
 func (l *Label) Commands() []Command {
 	result := make([]Command, len(l.commands))

@@ -189,3 +189,18 @@ jobs:
         run: |
           file cmd/libzpl/testdata/test_output.png
           ls -la cmd/libzpl/testdata/test_output.png
+
+  test-rust-crate:
+    name: Test Rust crate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust tests
+        run: |
+          cd rust/zpl-rs
+          cargo test -- --test-threads=1

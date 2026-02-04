@@ -34,6 +34,9 @@ site/public/
 site/resources/
 site/.hugo_build.lock
 
+# Generated WASM (built by gh-pages workflow)
+site/static/lib.wasm
+
 # Node
 node_modules/
 test-results/

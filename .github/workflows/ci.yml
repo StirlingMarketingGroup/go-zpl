@@ -86,19 +86,27 @@ jobs:
           done
 
   build-libzpl:
-    name: Build libzpl (${{ matrix.os }})
+    name: Build libzpl (${{ matrix.name }})
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - name: linux-amd64
+            os: ubuntu-latest
             goos: linux
             goarch: amd64
             ext: .so
-          - os: macos-latest
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            ext: .so
+          - name: darwin-arm64
+            os: macos-latest
             goos: darwin
             goarch: arm64
             ext: .dylib
-          - os: windows-latest
+          - name: windows-amd64
+            os: windows-latest
             goos: windows
             goarch: amd64
             ext: .dll
@@ -124,6 +132,35 @@ jobs:
         run: |
           ls -la cmd/libzpl/libzpl${{ matrix.ext }}
           file cmd/libzpl/libzpl${{ matrix.ext }} || true
+
+  build-libzpl-cross:
+    name: Build libzpl (windows-arm64 cross)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Install llvm-mingw for Windows ARM64 cross-compilation
+        run: |
+          wget -q https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          tar -xf llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          echo "$PWD/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Build Windows arm64
+        run: |
+          cd cmd/libzpl
+          CGO_ENABLED=1 GOOS=windows GOARCH=arm64 CC=aarch64-w64-mingw32-gcc \
+            go build -buildmode=c-shared -o libzpl-windows-arm64.dll ./
+
+      - name: Verify build
+        run: |
+          ls -la cmd/libzpl/libzpl-windows-arm64.dll
+          file cmd/libzpl/libzpl-windows-arm64.dll
 
   test-libzpl-c-api:
     name: Test libzpl C API

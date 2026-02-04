@@ -37,6 +37,21 @@ go get github.com/StirlingMarketingGroup/go-zpl
 go install github.com/StirlingMarketingGroup/go-zpl/cmd/zplrender@latest
 ```
 
+### Rust
+
+```toml
+[dependencies]
+zpl-rs = { git = "https://github.com/StirlingMarketingGroup/go-zpl", subdirectory = "rust/zpl-rs" }
+```
+
+```rust
+let png_bytes = zpl_rs::render("^XA^FO50,50^A0N,30,30^FDHello!^FS^XZ")?;
+```
+
+### C/C++/Other Languages
+
+Pre-built shared libraries (`libzpl`) are available for FFI integration. See [releases](https://github.com/StirlingMarketingGroup/go-zpl/releases) for downloads and [`cmd/libzpl`](cmd/libzpl/) for documentation.
+
 ## CLI Usage
 
 ```bash

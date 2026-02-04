@@ -84,3 +84,71 @@ jobs:
             echo "Running $f..."
             go test -fuzz="^${f}$" -fuzztime=30s ./... || true
           done
+
+  build-libzpl:
+    name: Build libzpl (${{ matrix.os }})
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: .so
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            ext: .dylib
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: .dll
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Build libzpl
+        shell: bash
+        run: |
+          cd cmd/libzpl
+          CGO_ENABLED=1 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -buildmode=c-shared -o libzpl${{ matrix.ext }} ./
+
+      - name: Verify build
+        shell: bash
+        run: |
+          ls -la cmd/libzpl/libzpl${{ matrix.ext }}
+          file cmd/libzpl/libzpl${{ matrix.ext }} || true
+
+  test-libzpl-c-api:
+    name: Test libzpl C API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Build libzpl
+        run: |
+          cd cmd/libzpl
+          go build -buildmode=c-shared -o libzpl.so ./
+
+      - name: Compile and run C test
+        run: |
+          cd cmd/libzpl
+          gcc -o testdata/test_libzpl testdata/test.c -L. -lzpl -I.
+          cd testdata && LD_LIBRARY_PATH=.. ./test_libzpl
+
+      - name: Verify output PNG
+        run: |
+          file cmd/libzpl/testdata/test_output.png
+          ls -la cmd/libzpl/testdata/test_output.png

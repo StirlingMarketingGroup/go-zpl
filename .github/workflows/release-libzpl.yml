@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  build-linux:
+  build-linux-amd64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,29 @@ jobs:
           path: |
             cmd/libzpl/libzpl-linux-amd64.so
             cmd/libzpl/libzpl-linux-amd64.h
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Linux arm64
+        run: |
+          cd cmd/libzpl
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
+            go build -buildmode=c-shared -o libzpl-linux-arm64.so ./
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libzpl-linux-arm64
+          path: |
+            cmd/libzpl/libzpl-linux-arm64.so
+            cmd/libzpl/libzpl-linux-arm64.h
 
   build-macos:
     runs-on: macos-latest
@@ -74,7 +97,7 @@ jobs:
             cmd/libzpl/libzpl-darwin-universal.dylib
             cmd/libzpl/libzpl-darwin-arm64.h
 
-  build-windows:
+  build-windows-amd64:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,8 +121,37 @@ jobs:
             cmd/libzpl/libzpl-windows-amd64.dll
             cmd/libzpl/libzpl-windows-amd64.h
 
+  build-windows-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install llvm-mingw for Windows ARM64 cross-compilation
+        run: |
+          wget -q https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          tar -xf llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          echo "$PWD/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Build Windows arm64
+        run: |
+          cd cmd/libzpl
+          CGO_ENABLED=1 GOOS=windows GOARCH=arm64 CC=aarch64-w64-mingw32-gcc \
+            go build -buildmode=c-shared -o libzpl-windows-arm64.dll ./
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libzpl-windows-arm64
+          path: |
+            cmd/libzpl/libzpl-windows-arm64.dll
+            cmd/libzpl/libzpl-windows-arm64.h
+
   upload-release:
-    needs: [build-linux, build-macos, build-windows]
+    needs: [build-linux-amd64, build-linux-arm64, build-macos, build-windows-amd64, build-windows-arm64]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     steps:
@@ -112,9 +164,14 @@ jobs:
         run: |
           mkdir -p release
 
-          # Linux
+          # Linux amd64
           cd artifacts/libzpl-linux-amd64
           tar -czvf ../../release/libzpl-linux-amd64.tar.gz *
+          cd ../..
+
+          # Linux arm64
+          cd artifacts/libzpl-linux-arm64
+          tar -czvf ../../release/libzpl-linux-arm64.tar.gz *
           cd ../..
 
           # macOS (include all variants)
@@ -122,9 +179,14 @@ jobs:
           tar -czvf ../../release/libzpl-darwin.tar.gz *
           cd ../..
 
-          # Windows
+          # Windows amd64
           cd artifacts/libzpl-windows-amd64
           zip -r ../../release/libzpl-windows-amd64.zip *
+          cd ../..
+
+          # Windows arm64
+          cd artifacts/libzpl-windows-arm64
+          zip -r ../../release/libzpl-windows-arm64.zip *
           cd ../..
 
       - name: Upload to release
@@ -132,5 +194,7 @@ jobs:
         with:
           files: |
             release/libzpl-linux-amd64.tar.gz
+            release/libzpl-linux-arm64.tar.gz
             release/libzpl-darwin.tar.gz
             release/libzpl-windows-amd64.zip
+            release/libzpl-windows-arm64.zip

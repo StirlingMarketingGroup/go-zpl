@@ -115,12 +115,16 @@ func zpl_free(ptr *C.char) { //nolint:revive,stylecheck // exported C function u
 	C.free(unsafe.Pointer(ptr))
 }
 
+// Version is the library version - stored as a package-level variable
+// so we only allocate it once.
+var cVersion = C.CString("1.0.0")
+
 // zpl_version returns the library version string.
 // The returned string is statically allocated and must not be freed.
 //
 //export zpl_version
 func zpl_version() *C.char { //nolint:revive,stylecheck // exported C function uses snake_case
-	return C.CString("1.0.0")
+	return cVersion
 }
 
 // Required for shared library, but unused

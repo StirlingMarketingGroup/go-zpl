@@ -126,6 +126,11 @@ fn download_and_extract(version: &str, archive_name: &str, lib_dir: &Path, extra
         extract_tar_gz(&bytes, lib_dir, extract_name)?;
     } else if archive_name.ends_with(".zip") {
         extract_zip(&bytes, lib_dir, extract_name)?;
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Unknown archive type: {}", archive_name),
+        ));
     }
 
     Ok(())

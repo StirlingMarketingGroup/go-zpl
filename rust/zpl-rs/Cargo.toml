@@ -1,0 +1,28 @@
+[package]
+name = "zpl-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Stirling Marketing Group"]
+description = "ZPL (Zebra Programming Language) rendering library - parse and render thermal label ZPL to images"
+license = "MIT"
+repository = "https://github.com/StirlingMarketingGroup/go-zpl"
+documentation = "https://docs.rs/zpl-rs"
+readme = "README.md"
+keywords = ["zpl", "zebra", "label", "barcode", "thermal-printer"]
+categories = ["rendering", "graphics", "encoding"]
+
+[dependencies]
+
+[build-dependencies]
+reqwest = { version = "0.12", features = ["blocking"] }
+flate2 = "1.0"
+tar = "0.4"
+zip = "2.0"
+
+[dev-dependencies]
+image = "0.25"
+
+[features]
+default = []
+# Bundle the library instead of downloading (for offline builds)
+bundled = []

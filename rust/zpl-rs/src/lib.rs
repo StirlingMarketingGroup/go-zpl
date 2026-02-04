@@ -220,6 +220,11 @@ pub fn render_bytes(zpl: &[u8]) -> Result<Vec<u8>> {
         return Err(Error::from(result));
     }
 
+    // Safety check: ensure we got valid output
+    if png_ptr.is_null() || png_len <= 0 {
+        return Err(Error::InternalError);
+    }
+
     // Copy to Rust-owned Vec and free the C memory
     let png_data = unsafe {
         let slice = slice::from_raw_parts(png_ptr as *const u8, png_len as usize);
@@ -273,6 +278,11 @@ pub fn render_bytes_with_options(zpl: &[u8], options: &RenderOptions) -> Result<
 
     if result != 0 {
         return Err(Error::from(result));
+    }
+
+    // Safety check: ensure we got valid output
+    if png_ptr.is_null() || png_len <= 0 {
+        return Err(Error::InternalError);
     }
 
     let png_data = unsafe {

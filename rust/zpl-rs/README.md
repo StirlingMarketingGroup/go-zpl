@@ -50,7 +50,7 @@ let zpl = "^XA^FO50,50^A0N,30,30^FDHello!^FS^XZ";
 
 let options = RenderOptions::new()
     .dpi(Dpi::Dpi300)
-    .size(812, 1218);  // 4" x 6" at 203 DPI
+    .size(1200, 1800);  // 4" x 6" at 300 DPI
 
 let png_bytes = render_with_options(zpl, &options).expect("Failed to render");
 ```
@@ -89,9 +89,7 @@ let png_bytes = render_with_options(zpl, &options).expect("Failed to render");
 use std::sync::Mutex;
 use zpl_rs::render;
 
-lazy_static::lazy_static! {
-    static ref ZPL_MUTEX: Mutex<()> = Mutex::new(());
-}
+static ZPL_MUTEX: Mutex<()> = Mutex::new(());
 
 fn render_safe(zpl: &str) -> zpl_rs::Result<Vec<u8>> {
     let _lock = ZPL_MUTEX.lock().unwrap();

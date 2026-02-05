@@ -34,11 +34,9 @@
 //!
 //! let zpl = "^XA^FO50,50^A0N,30,30^FDHello!^FS^XZ";
 //!
-//! let options = RenderOptions {
-//!     dpi: Dpi::Dpi300,
-//!     width: Some(812),
-//!     height: Some(1218),
-//! };
+//! let options = RenderOptions::new()
+//!     .dpi(Dpi::Dpi300)
+//!     .size(1200, 1800);  // 4" x 6" at 300 DPI
 //!
 //! let png_bytes = render_with_options(zpl, &options).expect("Failed to render");
 //! ```
@@ -251,7 +249,7 @@ pub fn render_bytes(zpl: &[u8]) -> Result<Vec<u8>> {
 /// let zpl = "^XA^FO50,50^A0N,30,30^FDHello!^FS^XZ";
 /// let options = RenderOptions::new()
 ///     .dpi(Dpi::Dpi300)
-///     .size(812, 1218);
+///     .size(1200, 1800);
 ///
 /// let png = render_with_options(zpl, &options).expect("render failed");
 /// ```

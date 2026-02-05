@@ -190,7 +190,7 @@ Comprehensive task list for the go-zpl library.
 
 ### Other 2D Barcodes
 
-- [x] `^BD` - MaxiCode (using ingridhq/maxicode library)
+- [x] `^BD` - MaxiCode (using internal maxicode encoder)
 - [x] `^BO` - Aztec Code (using boombuler/barcode library)
 - [ ] `^BF` - MicroPDF417
 
@@ -262,7 +262,7 @@ Comprehensive task list for the go-zpl library.
 
 - [x] 1D barcode rendering with proper bar widths (Code 128)
 - [x] Human-readable text below/above barcodes
-- [x] MaxiCode rendering (using ingridhq/maxicode library)
+- [x] MaxiCode rendering (using internal maxicode encoder)
 - [x] QR code rendering (using skip2/go-qrcode library)
 - [x] DataMatrix rendering (using boombuler/barcode library)
 - [x] PDF417 rendering (using boombuler/barcode library)

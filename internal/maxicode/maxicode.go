@@ -550,7 +550,7 @@ func (codewords maxiCodewords) processSecondary(mode, eci int, secondaryData str
 	// Number compression
 	idx = 0
 	for {
-		if set[idx] == 6 {
+		if set[idx] == 6 { //nolint:gosec // idx bounded by dataLen < 144
 			compressed := ""
 			for j := 0; j < 9; j++ {
 				compressed += string(rune(character[idx+j]))
@@ -608,10 +608,10 @@ func (codewords maxiCodewords) processSecondary(mode, eci int, secondaryData str
 			insertPosition(set, character, 1, &dataLen)
 			insertPosition(set, character, 1, &dataLen)
 			insertPosition(set, character, 1, &dataLen)
-			character[1] = 0x38 + ((eci >> 18) & 0x02)
-			character[2] = (eci >> 12) & 0x3f
-			character[3] = (eci >> 6) & 0x3f
-			character[4] = eci & 0x3f
+			character[1] = 0x38 + ((eci >> 18) & 0x02) //nolint:gosec // indices valid after 4 insertPosition calls
+			character[2] = (eci >> 12) & 0x3f          //nolint:gosec
+			character[3] = (eci >> 6) & 0x3f           //nolint:gosec
+			character[4] = eci & 0x3f                  //nolint:gosec
 		}
 	}
 

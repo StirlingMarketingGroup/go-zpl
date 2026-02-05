@@ -210,8 +210,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set crate version from release tag
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          sed -i "s/^version = .*/version = \"${VERSION}\"/" rust/zpl-rs/Cargo.toml
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+        run: cargo publish --allow-dirty
         working-directory: rust/zpl-rs

@@ -333,8 +333,12 @@ func (codewords maxiCodewords) processSecondary(mode, eci int, secondaryData str
 
 	for i := 0; i < len(secondaryData); i++ {
 		// Look up characters in table from Appendix A - this gives value and code set for most characters.
-		set[i] = maxiCodeSet[secondaryData[i]]
-		character[i] = maxiSymbolChar[secondaryData[i]]
+		val := secondaryData[i]
+		if int(val) >= len(maxiCodeSet) {
+			return errors.New("invalid character in input data")
+		}
+		set[i] = maxiCodeSet[val]
+		character[i] = maxiSymbolChar[val]
 	}
 
 	// If a character can be represented in more than one code set, pick which version to use.
@@ -551,6 +555,10 @@ func (codewords maxiCodewords) processSecondary(mode, eci int, secondaryData str
 	idx = 0
 	for {
 		if set[idx] == 6 { //nolint:gosec // idx bounded by dataLen < 144
+			if idx+9 > 144 {
+				idx++
+				continue
+			}
 			compressed := ""
 			for j := 0; j < 9; j++ {
 				compressed += string(rune(character[idx+j]))
@@ -569,7 +577,7 @@ func (codewords maxiCodewords) processSecondary(mode, eci int, secondaryData str
 			character[idx+5] = value & 0x3f
 
 			idx += 6
-			for j := idx; j < 140; j++ {
+			for j := idx; j < 141; j++ {
 				set[j] = set[j+3]
 				character[j] = character[j+3]
 			}

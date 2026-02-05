@@ -198,3 +198,20 @@ jobs:
             release/libzpl-darwin.tar.gz
             release/libzpl-windows-amd64.zip
             release/libzpl-windows-arm64.zip
+
+  publish-crate:
+    name: Publish zpl-rs
+    needs: [upload-release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
+        working-directory: rust/zpl-rs

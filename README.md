@@ -37,11 +37,11 @@ go get github.com/StirlingMarketingGroup/go-zpl
 go install github.com/StirlingMarketingGroup/go-zpl/cmd/zplrender@latest
 ```
 
-### Rust
+### Rust ([crates.io](https://crates.io/crates/zpl-rs))
 
 ```toml
 [dependencies]
-zpl-rs = { git = "https://github.com/StirlingMarketingGroup/go-zpl", subdirectory = "rust/zpl-rs" }
+zpl-rs = "0.1"
 ```
 
 ```rust

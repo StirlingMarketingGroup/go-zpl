@@ -5,9 +5,9 @@ import (
 	"image/draw"
 
 	"github.com/boombuler/barcode"
-	"github.com/boombuler/barcode/datamatrix"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
+	"github.com/StirlingMarketingGroup/go-zpl/internal/datamatrix"
 )
 
 // drawDataMatrix renders a DataMatrix barcode at the current position.
@@ -16,11 +16,19 @@ func (c *canvas) drawDataMatrix(bc *zpl.BarcodeDataMatrix) {
 		return
 	}
 
-	// Encode the DataMatrix
-	dm, err := datamatrix.Encode(bc.Data)
-	if err != nil {
-		// Silently skip if encoding fails
-		return
+	// Encode the DataMatrix. Honor explicit ^BX columns/rows when both are set;
+	// fall back to auto-size if the forced size is invalid or data won't fit.
+	var dm barcode.Barcode
+	var err error
+	if bc.Columns > 0 && bc.Rows > 0 {
+		dm, err = datamatrix.EncodeWithSize(bc.Data, bc.Columns, bc.Rows)
+	}
+	if dm == nil || err != nil {
+		dm, err = datamatrix.Encode(bc.Data)
+		if err != nil {
+			// Silently skip if encoding fails
+			return
+		}
 	}
 
 	// Calculate target size based on module height

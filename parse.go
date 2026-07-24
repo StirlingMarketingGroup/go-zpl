@@ -1,6 +1,10 @@
 package zpl
 
 import (
+	"bytes"
+	"compress/zlib"
+	"encoding/base64"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -65,8 +69,8 @@ func (p *parser) parseAll() ([]*Label, error) {
 		}
 	}
 
-	// If we have an unfinished label (no closing ^XZ), add it
-	if p.label != nil && len(p.label.Commands()) > 0 {
+	// If we have an unfinished label (no closing ^XZ) with drawable content, add it
+	if p.label != nil && p.label.HasDrawableContent() {
 		p.labels = append(p.labels, p.label)
 	}
 
@@ -105,7 +109,10 @@ func (p *parser) parseCaretCommand() error {
 	case "XZ":
 		p.inFormat = false
 		if p.label != nil {
-			p.labels = append(p.labels, p.label) // Save completed label
+			// Only keep labels that produce ink; setup-only blocks (^XA^MCY^XZ) are skipped
+			if p.label.HasDrawableContent() {
+				p.labels = append(p.labels, p.label)
+			}
 			p.label = nil
 		}
 		return nil
@@ -486,6 +493,57 @@ func (p *parser) parseBarcodeDefault() error {
 	return nil
 }
 
+// readBarcodeFieldData consumes an optional ^FH and a ^FD/^FV following a barcode
+// command, returning the (hex-decoded) data.
+func (p *parser) readBarcodeFieldData() (data string, hexIndicator rune, ok bool) {
+	for p.pos < len(p.input) {
+		p.skipWhitespace()
+		if p.pos >= len(p.input) || p.input[p.pos] != '^' {
+			break
+		}
+
+		save := p.pos
+		p.pos++
+		cmd := p.readCommandName()
+
+		switch cmd {
+		case "FH":
+			// Field Hexadecimal - read the indicator character
+			if p.pos < len(p.input) && p.input[p.pos] != '^' {
+				hexIndicator = rune(p.input[p.pos])
+				p.pos++
+			} else {
+				hexIndicator = '_' // Default
+			}
+			continue
+		case "FD", "FV":
+			var rawData strings.Builder
+			for p.pos < len(p.input) {
+				if strings.HasPrefix(p.input[p.pos:], "^FS") {
+					p.pos += 3
+					break
+				}
+				if p.input[p.pos] == '^' {
+					break
+				}
+				rawData.WriteByte(p.input[p.pos])
+				p.pos++
+			}
+			if hexIndicator != 0 {
+				data = decodeHexEscapes(rawData.String(), hexIndicator)
+			} else {
+				data = rawData.String()
+			}
+			return data, hexIndicator, true
+		default:
+			// Not a field command, restore position
+			p.pos = save
+			return "", hexIndicator, false
+		}
+	}
+	return "", hexIndicator, false
+}
+
 func (p *parser) parseBarcodeCode128() error {
 	params := p.readParams()
 	orient := OrientationNormal
@@ -501,37 +559,15 @@ func (p *parser) parseBarcodeCode128() error {
 		mode = Code128Mode(getParam(params, 5)[0])
 	}
 
-	// The data comes from the next ^FD or ^FV command
-	// We'll read it separately and create the barcode with empty data for now
+	// The data comes from the next ^FH? ^FD/^FV
 	bc := NewBarcodeCode128("", height).
 		WithOrientation(orient).
 		WithInterpretation(printInterp, interpAbove).
 		WithUCCCheckDigit(checkDigit).
 		WithMode(mode)
 
-	// Look for ^FD or ^FV
-	p.skipWhitespace()
-	if p.pos < len(p.input) && p.input[p.pos] == '^' {
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-		if cmd == "FD" || cmd == "FV" {
-			data := ""
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				data += string(p.input[p.pos])
-				p.pos++
-			}
-			bc.Data = data
-		} else {
-			p.pos = save // Restore position
-		}
+	if data, _, ok := p.readBarcodeFieldData(); ok {
+		bc.Data = data
 	}
 
 	p.label.Add(bc)
@@ -556,51 +592,27 @@ func (p *parser) parseBarcodeQR() error {
 
 	var data string
 
-	// Look for ^FD or ^FV
-	p.skipWhitespace()
-	if p.pos < len(p.input) && p.input[p.pos] == '^' {
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-		if cmd == "FD" || cmd == "FV" {
-			// Read the raw field data
-			var rawData strings.Builder
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				rawData.WriteByte(p.input[p.pos])
-				p.pos++
+	if fieldData, _, ok := p.readBarcodeFieldData(); ok {
+		// Parse the QR data format: [error_correction][mode],[data]
+		// e.g., "MA,HelloWorld" or "HA,https://example.com"
+		if len(fieldData) >= 3 && fieldData[2] == ',' {
+			// First char is error correction level
+			switch fieldData[0] {
+			case 'H':
+				errorCorrection = QRCodeECHigh
+			case 'Q':
+				errorCorrection = QRCodeECQuartile
+			case 'M':
+				errorCorrection = QRCodeECMedium
+			case 'L':
+				errorCorrection = QRCodeECLow
 			}
-
-			// Parse the QR data format: [error_correction][mode],[data]
-			// e.g., "MA,HelloWorld" or "HA,https://example.com"
-			fieldData := rawData.String()
-			if len(fieldData) >= 3 && fieldData[2] == ',' {
-				// First char is error correction level
-				switch fieldData[0] {
-				case 'H':
-					errorCorrection = QRCodeECHigh
-				case 'Q':
-					errorCorrection = QRCodeECQuartile
-				case 'M':
-					errorCorrection = QRCodeECMedium
-				case 'L':
-					errorCorrection = QRCodeECLow
-				}
-				// Second char is mode (A=auto, M=manual) - we ignore this
-				// Data starts after the comma
-				data = fieldData[3:]
-			} else {
-				// No prefix, use raw data
-				data = fieldData
-			}
+			// Second char is mode (A=auto, M=manual) - we ignore this
+			// Data starts after the comma
+			data = fieldData[3:]
 		} else {
-			p.pos = save // Restore position
+			// No prefix, use raw data
+			data = fieldData
 		}
 	}
 
@@ -635,32 +647,7 @@ func (p *parser) parseBarcodeDataMatrix() error {
 	}
 	aspectRatio := parseInt(getParam(params, 7), 1) // Square
 
-	var data string
-
-	// Look for ^FD or ^FV
-	p.skipWhitespace()
-	if p.pos < len(p.input) && p.input[p.pos] == '^' {
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-		if cmd == "FD" || cmd == "FV" {
-			var rawData strings.Builder
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				rawData.WriteByte(p.input[p.pos])
-				p.pos++
-			}
-			data = rawData.String()
-		} else {
-			p.pos = save
-		}
-	}
+	data, _, _ := p.readBarcodeFieldData()
 
 	bc := NewBarcodeDataMatrix(data, height).
 		WithOrientation(orient).
@@ -693,32 +680,7 @@ func (p *parser) parseBarcodePDF417() error {
 	rows := parseInt(getParam(params, 4), 0)          // Auto
 	truncate := getParam(params, 5) == "Y"
 
-	var data string
-
-	// Look for ^FD or ^FV
-	p.skipWhitespace()
-	if p.pos < len(p.input) && p.input[p.pos] == '^' {
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-		if cmd == "FD" || cmd == "FV" {
-			var rawData strings.Builder
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				rawData.WriteByte(p.input[p.pos])
-				p.pos++
-			}
-			data = rawData.String()
-		} else {
-			p.pos = save
-		}
-	}
+	data, _, _ := p.readBarcodeFieldData()
 
 	bc := NewBarcodePDF417(data, height).
 		WithOrientation(orient).
@@ -753,32 +715,7 @@ func (p *parser) parseBarcodeAztec() error {
 	symbolCount := parseInt(getParam(params, 5), 1)     // Structured append count
 	symbolID := getParam(params, 6)                     // Structured append ID
 
-	var data string
-
-	// Look for ^FD or ^FV
-	p.skipWhitespace()
-	if p.pos < len(p.input) && p.input[p.pos] == '^' {
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-		if cmd == "FD" || cmd == "FV" {
-			var rawData strings.Builder
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				rawData.WriteByte(p.input[p.pos])
-				p.pos++
-			}
-			data = rawData.String()
-		} else {
-			p.pos = save
-		}
-	}
+	data, _, _ := p.readBarcodeFieldData()
 
 	bc := NewBarcodeAztec(data, magnification).
 		WithOrientation(orient).
@@ -800,66 +737,18 @@ func (p *parser) parseMaxiCode() error {
 	symbolNumber := parseInt(getParam(params, 1), 1)
 	symbolCount := parseInt(getParam(params, 2), 1)
 
-	var hexIndicator rune
-	var data string
-
-	// Look for ^FH (field hexadecimal indicator) and then ^FD or ^FV
-	for p.pos < len(p.input) {
-		p.skipWhitespace()
-		if p.pos >= len(p.input) || p.input[p.pos] != '^' {
-			break
-		}
-
-		// Peek at the next command
-		save := p.pos
-		p.pos++
-		cmd := p.readCommandName()
-
-		switch cmd {
-		case "FH":
-			// Field Hexadecimal - read the indicator character
-			if p.pos < len(p.input) && p.input[p.pos] != '^' {
-				hexIndicator = rune(p.input[p.pos])
-				p.pos++
-			} else {
-				hexIndicator = '_' // Default
-			}
-			continue
-		case "FD", "FV":
-			// Read the field data using strings.Builder for efficiency
-			var rawData strings.Builder
-			for p.pos < len(p.input) {
-				if strings.HasPrefix(p.input[p.pos:], "^FS") {
-					p.pos += 3
-					break
-				}
-				if p.input[p.pos] == '^' {
-					break
-				}
-				rawData.WriteByte(p.input[p.pos])
-				p.pos++
-			}
-			// Decode hex escapes if hex indicator is set
-			if hexIndicator != 0 {
-				data = decodeHexEscapes(rawData.String(), hexIndicator)
-			} else {
-				data = rawData.String()
-			}
-
-			// Create and add the MaxiCode barcode
-			mc := NewBarcodeMaxiCode(data, mode).
-				WithStructuredAppend(symbolNumber, symbolCount)
-			if hexIndicator != 0 {
-				mc.WithHexIndicator(hexIndicator)
-			}
-			p.label.Add(mc)
-			return nil
-		default:
-			// Not a field command, restore position and exit
-			p.pos = save
-			return nil
-		}
+	data, hexIndicator, ok := p.readBarcodeFieldData()
+	if !ok {
+		// Preserve prior behavior: only add MaxiCode when field data is present
+		return nil
 	}
+
+	mc := NewBarcodeMaxiCode(data, mode).
+		WithStructuredAppend(symbolNumber, symbolCount)
+	if hexIndicator != 0 {
+		mc.WithHexIndicator(hexIndicator)
+	}
+	p.label.Add(mc)
 	return nil
 }
 
@@ -981,8 +870,8 @@ func (p *parser) parseGraphicField() error {
 		p.pos++
 	}
 
-	// Read totalBytes (param 2) - we don't use this but need to skip it
-	p.readIntParam()
+	// Read totalBytes (param 2)
+	totalBytes := p.readIntParam()
 
 	// Skip comma
 	if p.pos < len(p.input) && p.input[p.pos] == ',' {
@@ -1021,12 +910,16 @@ func (p *parser) parseGraphicField() error {
 
 		if len(binaryData) > 0 {
 			gf := NewGraphicFieldBinary(bytesPerRow, binaryData)
+			if totalBytes > 0 {
+				gf.TotalBytes = totalBytes
+			}
 			p.label.Add(gf)
 		}
 
 	case GraphicFieldASCII:
-		// ASCII format: read hex characters until ^FS or next command
-		var data strings.Builder
+		// ASCII format: read ALL characters until ^FS or next command (preserve
+		// compression count letters, ',', '!', ':', and Z64/B64 envelopes).
+		var raw strings.Builder
 		for p.pos < len(p.input) {
 			if strings.HasPrefix(p.input[p.pos:], "^FS") {
 				p.pos += 3
@@ -1035,20 +928,198 @@ func (p *parser) parseGraphicField() error {
 			if p.input[p.pos] == '^' {
 				break
 			}
-			ch := p.input[p.pos]
-			if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f') {
-				data.WriteByte(ch)
-			}
+			raw.WriteByte(p.input[p.pos])
 			p.pos++
 		}
 
-		if data.Len() > 0 {
-			gf := NewGraphicFieldASCII(bytesPerRow, data.String())
-			p.label.Add(gf)
+		rawData := raw.String()
+		if rawData == "" {
+			return nil
 		}
+
+		// Handle :Z64: / :B64: envelopes (base64 [+ zlib] → expand to hex)
+		if hex, ok := decompressZ64OrB64(rawData); ok {
+			gf := NewGraphicFieldASCII(bytesPerRow, hex)
+			if totalBytes > 0 {
+				gf.TotalBytes = totalBytes
+				gf.DataBytes = dataBytes
+			}
+			p.label.Add(gf)
+			return nil
+		}
+
+		// Decompress Zebra alternative ASCII compression to plain hex
+		hex := decompressGraphicFieldASCII(rawData, bytesPerRow)
+		if hex == "" {
+			return nil
+		}
+		gf := NewGraphicFieldASCII(bytesPerRow, hex)
+		if totalBytes > 0 {
+			gf.TotalBytes = totalBytes
+			gf.DataBytes = dataBytes
+		}
+		p.label.Add(gf)
 	}
 
 	return nil
+}
+
+// decompressZ64OrB64 expands a :Z64: or :B64: graphic-field envelope to plain hex.
+// Format: :Z64:<base64>:<crc> (zlib-inflated) or :B64:<base64>:<crc> (raw).
+// CRC is ignored. Returns ok=false if the data is not such an envelope.
+func decompressZ64OrB64(data string) (hex string, ok bool) {
+	trimmed := strings.TrimSpace(data)
+	var compressed bool
+	var rest string
+	switch {
+	case strings.HasPrefix(trimmed, ":Z64:"):
+		compressed = true
+		rest = trimmed[5:]
+	case strings.HasPrefix(trimmed, ":B64:"):
+		compressed = false
+		rest = trimmed[5:]
+	default:
+		return "", false
+	}
+
+	// rest is <base64>:<crc> — CRC may be absent
+	b64Part := rest
+	if idx := strings.LastIndex(rest, ":"); idx >= 0 {
+		b64Part = rest[:idx]
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(b64Part)
+	if err != nil {
+		// Try raw encoding without padding issues
+		decoded, err = base64.RawStdEncoding.DecodeString(b64Part)
+		if err != nil {
+			return "", false
+		}
+	}
+
+	var binary []byte
+	if compressed {
+		zr, err := zlib.NewReader(bytes.NewReader(decoded))
+		if err != nil {
+			return "", false
+		}
+		binary, err = io.ReadAll(zr)
+		_ = zr.Close()
+		if err != nil {
+			return "", false
+		}
+	} else {
+		binary = decoded
+	}
+
+	const hexDigits = "0123456789ABCDEF"
+	var sb strings.Builder
+	sb.Grow(len(binary) * 2)
+	for _, b := range binary {
+		sb.WriteByte(hexDigits[b>>4])
+		sb.WriteByte(hexDigits[b&0x0F])
+	}
+	return sb.String(), true
+}
+
+// decompressGraphicFieldASCII expands Zebra's alternative data-compression scheme
+// used in ^GFA fields into plain hex nibbles. Plain hex input (no compression chars)
+// is returned byte-identical (aside from ignored whitespace).
+//
+// Rules (row length = bytesPerRow*2 nibbles):
+//   - whitespace: ignore
+//   - hex digit 0-9A-Fa-f: emit it count times (count defaults to 1); reset count
+//   - uppercase G..Z: count += (ch - 'F')      // G=1 … Z=20; consecutive accumulate
+//   - lowercase g..z: count += 20 * (ch - 'f') // g=20 … z=400
+//   - ',' : fill remainder of current row with '0'
+//   - '!' : fill remainder of current row with 'F'
+//   - ':' : emit a copy of the previous complete row (or a row of '0' if none yet)
+func decompressGraphicFieldASCII(data string, bytesPerRow int) string {
+	if bytesPerRow <= 0 {
+		bytesPerRow = 1
+	}
+	rowLen := bytesPerRow * 2
+
+	var out strings.Builder
+	out.Grow(len(data) * 2)
+
+	row := make([]byte, 0, rowLen)
+	var prevRow []byte
+	count := 0
+
+	emitNibble := func(ch byte, n int) {
+		for i := 0; i < n; i++ {
+			row = append(row, ch)
+			if len(row) == rowLen {
+				out.Write(row)
+				prevRow = append(prevRow[:0], row...)
+				row = row[:0]
+			}
+		}
+	}
+
+	fillRest := func(fill byte) {
+		need := rowLen - len(row)
+		if need <= 0 {
+			need = rowLen
+			row = row[:0]
+		}
+		for i := 0; i < need; i++ {
+			row = append(row, fill)
+		}
+		out.Write(row)
+		prevRow = append(prevRow[:0], row...)
+		row = row[:0]
+		count = 0
+	}
+
+	for i := 0; i < len(data); i++ {
+		ch := data[i]
+		switch {
+		case ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n':
+			// ignore whitespace
+		case (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f'):
+			n := count
+			if n == 0 {
+				n = 1
+			}
+			// Preserve original case so plain hex stays byte-identical to prior parsing.
+			emitNibble(ch, n)
+			count = 0
+		case ch >= 'G' && ch <= 'Z':
+			count += int(ch - 'F')
+		case ch >= 'g' && ch <= 'z':
+			count += 20 * int(ch-'f')
+		case ch == ',':
+			fillRest('0')
+		case ch == '!':
+			fillRest('F')
+		case ch == ':':
+			pr := prevRow
+			if pr == nil {
+				pr = bytes.Repeat([]byte{'0'}, rowLen)
+			}
+			n := count
+			if n == 0 {
+				n = 1
+			}
+			for j := 0; j < n; j++ {
+				out.Write(pr)
+				prevRow = append(prevRow[:0], pr...)
+			}
+			row = row[:0]
+			count = 0
+		default:
+			// Unknown character — ignore
+		}
+	}
+
+	// Append any incomplete trailing row
+	if len(row) > 0 {
+		out.Write(row)
+	}
+
+	return out.String()
 }
 
 func (p *parser) parsePrintOrientation() error {

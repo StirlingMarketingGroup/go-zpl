@@ -24,7 +24,7 @@ func (c *canvas) drawPDF417WithModuleWidth(bc *zpl.BarcodePDF417, moduleWidth in
 
 	// Encode the PDF417
 	// The pdf417 library uses security level 0-8 like ZPL
-	code, err := zpdf417.EncodeWithDimensions(bc.Data, byte(bc.SecurityLevel), bc.DataColumns, bc.Rows)
+	code, err := zpdf417.EncodeWithDimensions(bc.Data, byte(bc.SecurityLevel&0xFF), bc.DataColumns, bc.Rows)
 	if err != nil {
 		// Silently skip if encoding fails
 		return

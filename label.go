@@ -153,6 +153,50 @@ func (l *Label) Commands() []Command {
 	return result
 }
 
+// HasDrawableContent reports whether the label contains any command that produces ink.
+// State-only commands (font changes, field origin, field block, comments, etc.) are not
+// considered drawable. Setup-only ^XA…^XZ blocks without fields return false.
+func (l *Label) HasDrawableContent() bool {
+	if l == nil {
+		return false
+	}
+	for _, cmd := range l.commands {
+		switch v := cmd.(type) {
+		case *FieldData:
+			if v.Data != "" {
+				return true
+			}
+		case *GraphicBox, *GraphicCircle, *GraphicDiagonalLine, *GraphicEllipse, *GraphicField, *GraphicSymbol:
+			return true
+		case *BarcodeCode128:
+			if v.Data != "" {
+				return true
+			}
+		case *BarcodeQR:
+			if v.Data != "" {
+				return true
+			}
+		case *BarcodeDataMatrix:
+			if v.Data != "" {
+				return true
+			}
+		case *BarcodePDF417:
+			if v.Data != "" {
+				return true
+			}
+		case *BarcodeAztec:
+			if v.Data != "" {
+				return true
+			}
+		case *BarcodeMaxiCode:
+			if v.Data != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // String returns the complete ZPL code for this label.
 // Implements fmt.Stringer.
 func (l *Label) String() string {

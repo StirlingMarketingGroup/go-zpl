@@ -411,8 +411,45 @@ func (c *canvas) drawText(text string) {
 	x := c.curX
 	y := c.curY
 
-	// Apply ^FB justification for the current field (single-line support)
+	// Multi-line ^FB support: \& hard breaks + word wrap when MaxLines > 1 or \& present.
+	// MaxLines == 1 with no \& keeps the historic single-line (may overflow) behavior.
 	if c.fieldBlock != nil && c.fieldBlock.Width > 0 && orient == zpl.OrientationNormal {
+		hasHardBreaks := strings.Contains(text, `\&`)
+		maxLines := c.fieldBlock.MaxLines
+		if maxLines < 1 {
+			maxLines = 1
+		}
+
+		if maxLines > 1 || hasHardBreaks {
+			lines := c.layoutFieldBlockLines(text, height)
+			if maxLines > 0 && len(lines) > maxLines {
+				lines = lines[:maxLines]
+			}
+			lineSpacing := c.fieldBlock.LineSpacing
+			for i, line := range lines {
+				lx := x
+				if line != "" {
+					textWidth := c.fontMgr.measureTextWidth(line, c.currentFont, height, c.fontWidth)
+					if textWidth > 0 {
+						switch c.fieldBlock.Justification {
+						case zpl.JustifyRight:
+							lx += c.fieldBlock.Width - textWidth
+						case zpl.JustifyCenter:
+							lx += (c.fieldBlock.Width - textWidth) / 2
+							// JustifyLeft and JustifyJustified (J) treated as left
+						}
+					}
+				}
+				ly := y + i*(height+lineSpacing)
+				c.fontMgr.drawText(c.img, line, lx, ly, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, c.useBaseline)
+			}
+
+			c.fieldReverse = false
+			c.fieldBlock = nil
+			return
+		}
+
+		// Single-line ^FB: justify only, may overflow (historic behavior)
 		textWidth := c.fontMgr.measureTextWidth(text, c.currentFont, height, c.fontWidth)
 		if textWidth > 0 {
 			switch c.fieldBlock.Justification {
@@ -431,6 +468,117 @@ func (c *canvas) drawText(text string) {
 	c.fieldReverse = false
 	// ^FB applies to a single field, clear after drawing text
 	c.fieldBlock = nil
+}
+
+// layoutFieldBlockLines splits text on ZPL \& hard breaks and word-wraps each
+// segment to the current field block width.
+func (c *canvas) layoutFieldBlockLines(text string, fontHeight int) []string {
+	// Split on literal \&; a trailing \& yields no trailing empty line.
+	segments := strings.Split(text, `\&`)
+	if len(segments) > 0 && segments[len(segments)-1] == "" {
+		segments = segments[:len(segments)-1]
+	}
+
+	width := c.fieldBlock.Width
+	var lines []string
+	for _, seg := range segments {
+		wrapped := c.wrapFieldBlockSegment(seg, width, fontHeight)
+		lines = append(lines, wrapped...)
+	}
+	return lines
+}
+
+// wrapFieldBlockSegment greedy word-wraps a single segment to maxWidth.
+// Breaks on spaces; a single word wider than maxWidth breaks at the last
+// character that fits.
+func (c *canvas) wrapFieldBlockSegment(text string, maxWidth, fontHeight int) []string {
+	if text == "" {
+		return []string{""}
+	}
+
+	measure := func(s string) int {
+		return c.fontMgr.measureTextWidth(s, c.currentFont, fontHeight, c.fontWidth)
+	}
+
+	// Fast path: already fits
+	if measure(text) <= maxWidth {
+		return []string{text}
+	}
+
+	words := strings.Split(text, " ")
+	var lines []string
+	var current string
+
+	flush := func() {
+		if current != "" {
+			lines = append(lines, current)
+			current = ""
+		}
+	}
+
+	for _, word := range words {
+		// Character-break a word that exceeds the width on its own
+		if measure(word) > maxWidth {
+			flush()
+			parts := breakWordToWidth(word, maxWidth, measure)
+			for i, part := range parts {
+				if i < len(parts)-1 {
+					lines = append(lines, part)
+				} else {
+					current = part
+				}
+			}
+			continue
+		}
+
+		if current == "" {
+			current = word
+			continue
+		}
+
+		trial := current + " " + word
+		if measure(trial) <= maxWidth {
+			current = trial
+		} else {
+			lines = append(lines, current)
+			current = word
+		}
+	}
+	flush()
+
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+// breakWordToWidth splits a single word into pieces that each fit maxWidth.
+func breakWordToWidth(word string, maxWidth int, measure func(string) int) []string {
+	if word == "" {
+		return []string{""}
+	}
+	if measure(word) <= maxWidth {
+		return []string{word}
+	}
+
+	var parts []string
+	var current string
+	for _, r := range word {
+		trial := current + string(r)
+		if current != "" && measure(trial) > maxWidth {
+			parts = append(parts, current)
+			current = string(r)
+		} else {
+			current = trial
+		}
+	}
+	if current != "" {
+		parts = append(parts, current)
+	}
+	if len(parts) == 0 {
+		return []string{word}
+	}
+	return parts
 }
 
 // drawBox renders a graphic box at the current position.

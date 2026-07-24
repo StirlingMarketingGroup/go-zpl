@@ -75,6 +75,21 @@ linters:
           - errorlint
           - unused
           - unparam
+      # internal/datamatrix is derived from github.com/boombuler/barcode/datamatrix (MIT)
+      # and retains the original code style
+      - path: internal/datamatrix/
+        linters:
+          - gocritic
+          - revive
+          - staticcheck
+          - errorlint
+          - unused
+          - unparam
+      # internal/maxicode indices are bounds-checked against fixed 144-module grids
+      # and its int->byte conversions operate on 6-bit codewords; gosec can't prove it
+      - path: internal/maxicode/
+        linters:
+          - gosec
 
 issues:
   max-issues-per-linter: 0

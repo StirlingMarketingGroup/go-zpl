@@ -480,7 +480,7 @@ func (c *canvas) layoutFieldBlockLines(text string, fontHeight int) []string {
 	}
 
 	width := c.fieldBlock.Width
-	var lines []string
+	lines := make([]string, 0, len(segments))
 	for _, seg := range segments {
 		wrapped := c.wrapFieldBlockSegment(seg, width, fontHeight)
 		lines = append(lines, wrapped...)

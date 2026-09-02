@@ -74,12 +74,16 @@ docs:
 wasm:
 	cd site/assets/go && GOOS=js GOARCH=wasm go build -o ../../static/lib.wasm .
 
+node_modules: package.json package-lock.json
+	npm ci
+	touch node_modules
+
 # Build the Hugo site
-site: wasm
+site: wasm node_modules
 	cd site && hugo --minify
 
 # Run Hugo dev server
-site-dev:
+site-dev: node_modules
 	cd site && hugo server --bind 0.0.0.0
 
 # Run full dev environment (requires npm install first)

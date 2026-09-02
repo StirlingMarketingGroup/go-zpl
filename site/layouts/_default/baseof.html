@@ -27,7 +27,7 @@
 <body>
     {{ block "main" . }}{{ end }}
     <script src="{{ "wasm_exec.js" | relURL }}"></script>
-    {{ $app := resources.Get "js/app.js" | minify }}
+    {{ $app := resources.Get "js/app.js" | js.Build (dict "minify" (not hugo.IsServer)) }}
     <script src="{{ $app.RelPermalink }}"></script>
 </body>
 </html>

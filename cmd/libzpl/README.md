@@ -144,6 +144,8 @@ int main() {
    - **macOS**: `DYLD_LIBRARY_PATH` or rpath (`@executable_path`)
    - **Windows**: Same directory as .exe or in PATH
 
+Using the `zpl-rs` crate instead of raw FFI? Its README's "Bundling for distribution" section covers the same steps with the crate's `DEP_ZPL_*` build metadata and `LIBZPL_COPY_TO` hook, plus Tauri/AppImage notes.
+
 ### Library Size
 
 | Platform | Size |

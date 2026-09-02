@@ -10,6 +10,13 @@
 //! **Important:** The underlying Go library is not thread-safe for concurrent renders.
 //! If you need to render from multiple threads, use a mutex or serialize your render calls.
 //!
+//! ## Distribution
+//!
+//! libzpl is dynamically linked. `cargo run` and `cargo test` need no extra setup.
+//! Shipping a binary requires bundling the library — see the README's "Bundling for
+//! distribution" section. Dependents can locate the staged library via `DEP_ZPL_LIB_PATH`
+//! build-script metadata, or copy it with `LIBZPL_COPY_TO`.
+//!
 //! ## Quick Start
 //!
 //! ```rust
@@ -45,8 +52,10 @@ use std::ffi::c_char;
 use std::ffi::c_int;
 use std::slice;
 
-// FFI declarations
-#[link(name = "zpl")]
+// FFI declarations. Windows uses raw-dylib because the release archives ship only zpl.dll
+// (no import library), which `kind = "dylib"` would require on MSVC.
+#[cfg_attr(windows, link(name = "zpl", kind = "raw-dylib"))]
+#[cfg_attr(not(windows), link(name = "zpl"))]
 extern "C" {
     fn zpl_render_png(
         zpl_data: *const c_char,
@@ -310,9 +319,7 @@ mod tests {
     #[test]
     fn test_render_with_options() {
         let zpl = "^XA^FO50,50^A0N,30,30^FDHello!^FS^XZ";
-        let options = RenderOptions::new()
-            .dpi(Dpi::Dpi300)
-            .size(812, 1218);
+        let options = RenderOptions::new().dpi(Dpi::Dpi300).size(812, 1218);
 
         let png = render_with_options(zpl, &options).expect("render failed");
         assert!(png.len() > 8);

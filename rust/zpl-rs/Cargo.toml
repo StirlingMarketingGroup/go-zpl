@@ -10,6 +10,7 @@ documentation = "https://docs.rs/zpl-rs"
 readme = "README.md"
 keywords = ["zpl", "zebra", "label", "barcode", "thermal-printer"]
 categories = ["rendering", "graphics", "encoding"]
+links = "zpl"
 
 [dependencies]
 

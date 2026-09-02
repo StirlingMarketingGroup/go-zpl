@@ -1,26 +1,43 @@
+import { Dazzle, DazzleError } from 'dazzle-zpl';
+
 // ZPL Label Renderer - Client-side application
 
 let editor;
 let renderTimeout;
 let wasmReady = false;
 
-// Safe base64 encode that handles both binary data and Unicode text
-// For ZPL with binary graphics, the string contains raw bytes (Latin1) which btoa handles directly
-// Only fall back to UTF-8 encoding if btoa fails (for actual Unicode text)
+// Base64 for the WASM boundary and saved state: the same bytes Dazzle prints.
 function safeBase64Encode(str) {
-    try {
-        // Try direct btoa first - works for binary data and ASCII
-        return btoa(str);
-    } catch (e) {
-        // If btoa fails (non-Latin1 chars), use UTF-8 encoding
-        const bytes = new TextEncoder().encode(str);
-        const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
-        return btoa(binString);
+    return btoa(bytesToLatin1(zplBytes(str)));
+}
+
+// Inverse of zplBytes for imported bytes. Not TextDecoder('iso-8859-1'): browsers
+// alias that label to windows-1252, which remaps 0x80–0x9F (0x80 → U+20AC) and
+// breaks the 1:1 byte mapping binary ^GF data depends on.
+function bytesToLatin1(bytes) {
+    let out = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     }
+    return out;
+}
+
+// The editor document as bytes: an imported file is a Latin-1 byte string (1:1 with
+// the file, so binary ^GF data survives), and only genuinely Unicode text typed into
+// the editor gets UTF-8-encoded.
+function zplBytes(str) {
+    if (/^[\u0000-\u00ff]*$/.test(str)) {
+        return Uint8Array.from(str, (c) => c.charCodeAt(0));
+    }
+    return new TextEncoder().encode(str);
 }
 
 // Storage keys
 const STORAGE_KEY = 'zpl-renderer';
+// The Dazzle opt-in is its own key, not a field of the editor state: saveState()
+// serializes the editor document, so writing the opt-in through it before Monaco
+// has loaded would overwrite the saved label with the default.
+const DAZZLE_STORAGE_KEY = 'zpl-renderer-dazzle';
 
 // Default 4x6 label at 203 DPI
 const DEFAULT_DPI = 203;
@@ -645,9 +662,9 @@ function getDimensionsInDots() {
 }
 
 // Initialize Monaco Editor
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+window.require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
 
-require(['vs/editor/editor.main'], function () {
+window.require(['vs/editor/editor.main'], function () {
     // Register ZPL language
     monaco.languages.register({ id: 'zpl' });
 
@@ -880,10 +897,8 @@ document.getElementById('example').addEventListener('change', async () => {
                     // binaryString is already a Latin-1 string (each char = one byte)
                     zpl = binaryString;
                 } else {
-                    // For non-binary files, use ArrayBuffer + Latin-1 decoder
                     const buffer = await response.arrayBuffer();
-                    const decoder = new TextDecoder('iso-8859-1');
-                    zpl = decoder.decode(buffer);
+                    zpl = bytesToLatin1(new Uint8Array(buffer));
                 }
             } catch (e) {
                 console.error('Failed to fetch example:', e);
@@ -999,10 +1014,7 @@ function handleDrop(e) {
         const reader = new FileReader();
         reader.onload = function (event) {
             if (editor) {
-                // Use Latin-1 decoder to preserve binary data (1:1 byte mapping)
-                const decoder = new TextDecoder('iso-8859-1');
-                const content = decoder.decode(event.target.result);
-                editor.setValue(content);
+                editor.setValue(bytesToLatin1(new Uint8Array(event.target.result)));
                 saveState();
             }
         };
@@ -1098,6 +1110,93 @@ document.getElementById('print-btn').addEventListener('click', () => {
     };
 });
 
+const dazzle = new Dazzle();
+const dazzlePrintBtn = document.getElementById('dazzle-print-btn');
+const dazzleNotice = document.getElementById('dazzle-notice');
+const dazzleConnect = document.getElementById('dazzle-connect');
+const dazzleDownload = document.getElementById('dazzle-download');
+const dazzleConnecting = document.getElementById('dazzle-connecting');
+const toasts = document.getElementById('toasts');
+
+function showToast(text, isError) {
+    const toast = document.createElement('div');
+    toast.className = isError ? 'toast toast-error' : 'toast';
+    const icon = document.createElement('i');
+    icon.className = isError ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check';
+    const message = document.createElement('span');
+    message.textContent = text;
+    toast.append(icon, message);
+    toasts.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
+// A Dazzle print is idle → sending → sent | failed; this is the one place that
+// renders those states onto the button and the toasts.
+function renderDazzlePrint(state, text) {
+    dazzlePrintBtn.disabled = state === 'sending';
+    if (state === 'sent' || state === 'failed') {
+        showToast(text, state === 'failed');
+    }
+}
+
+// The Dazzle connection is notOptedIn → connecting → connected | unavailable, and
+// polling moves it between the last two as the server comes and goes; this is the
+// one place that renders it.
+function renderDazzleConnection(state) {
+    dazzleNotice.hidden = state === 'connected';
+    dazzleDownload.hidden = state === 'connecting';
+    dazzleConnect.hidden = state !== 'notOptedIn';
+    dazzleConnecting.hidden = state !== 'connecting';
+    dazzlePrintBtn.hidden = state !== 'connected';
+}
+
+function startDazzleWatch() {
+    renderDazzleConnection('connecting');
+    dazzle.watch((running) => {
+        renderDazzleConnection(running ? 'connected' : 'unavailable');
+    }, { interval: 2000 });
+}
+
+// Polling localhost from a public https page triggers Chrome's Local Network Access
+// permission prompt; a site that promises "no servers" must not fire that for every
+// visitor on load. Poll only after the user says they have Dazzle, and remember it.
+function initDazzle() {
+    let optedIn = false;
+    try {
+        optedIn = localStorage.getItem(DAZZLE_STORAGE_KEY) === '1';
+    } catch (e) {
+        console.warn('Failed to load Dazzle preference:', e);
+    }
+    if (optedIn) {
+        startDazzleWatch();
+    } else {
+        renderDazzleConnection('notOptedIn');
+    }
+}
+
+dazzleConnect.addEventListener('click', (e) => {
+    e.preventDefault();
+    try {
+        localStorage.setItem(DAZZLE_STORAGE_KEY, '1');
+    } catch (err) {
+        console.warn('Failed to save Dazzle preference:', err);
+    }
+    startDazzleWatch();
+});
+
+dazzlePrintBtn.addEventListener('click', async () => {
+    if (!editor) return;
+    renderDazzlePrint('sending');
+    try {
+        const result = await dazzle.print(zplBytes(editor.getValue()));
+        renderDazzlePrint('sent', `Sent to printer (job ${result.job_id})`);
+    } catch (err) {
+        const message = err instanceof DazzleError ? err.message : `Dazzle unreachable: ${err.message}`;
+        renderDazzlePrint('failed', message);
+    }
+});
+
 // Initialize
 initControls();
+initDazzle();
 initWasm();

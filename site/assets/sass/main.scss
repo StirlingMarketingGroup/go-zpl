@@ -4,6 +4,10 @@
     padding: 0;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background: #1e1e1e;
@@ -111,6 +115,11 @@ header {
 
         &:active {
             background: #0d5a8c;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: default;
         }
     }
 }
@@ -236,7 +245,8 @@ header {
     header,
     .controls,
     .editor-panel,
-    .privacy-notice,
+    .notice,
+    .toast-container,
     footer,
     #loading,
     #error {
@@ -275,26 +285,47 @@ header {
     }
 }
 
-.privacy-notice {
+.notice {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    background: linear-gradient(135deg, #1a3a1a 0%, #1e2a1e 100%);
-    border: 1px solid #2d5a2d;
+    border: 1px solid;
     border-radius: 6px;
     margin-top: 0.5rem;
     font-size: 0.8rem;
-    color: #a3d9a3;
 
-    svg {
+    svg,
+    i {
         flex-shrink: 0;
-        color: #4caf50;
     }
 
+    a {
+        color: inherit;
+        text-decoration: underline;
+    }
+}
+
+.notice-privacy {
+    background: linear-gradient(135deg, #1a3a1a 0%, #1e2a1e 100%);
+    border-color: #2d5a2d;
+    color: #a3d9a3;
+
+    svg,
     strong {
         color: #4caf50;
+    }
+}
+
+.notice-info {
+    background: linear-gradient(135deg, #1a2e3a 0%, #1e262e 100%);
+    border-color: #2d4a5a;
+    color: #9cc9e3;
+
+    i,
+    strong {
+        color: #3fa9f5;
     }
 }
 
@@ -304,4 +335,60 @@ footer {
     text-align: center;
     font-size: 0.75rem;
     color: #888;
+}
+
+// Fixed so a toast never shifts the layout it reports on
+.toast-container {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1090;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: calc(100% - 2rem);
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 350px;
+    max-width: 100%;
+    padding: 0.75rem 1rem;
+    background: #252526;
+    border: 1px solid #333;
+    border-left: 4px solid #4caf50;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    color: #d4d4d4;
+    font-size: 0.875rem;
+    pointer-events: auto;
+    animation: toast-in 0.2s ease-out;
+
+    i {
+        flex-shrink: 0;
+        color: #4caf50;
+    }
+
+    &.toast-error {
+        border-left-color: #be1100;
+
+        i {
+            color: #f48771;
+        }
+    }
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }

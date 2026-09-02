@@ -26,6 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@fancyapps/ui": "^6.1.10"
+    "@fancyapps/ui": "^6.1.10",
+    "dazzle-zpl": "^0.2.3"
   }
 }

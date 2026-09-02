@@ -1,6 +1,7 @@
 name: Render Example Labels
 
 on:
+  workflow_dispatch:
   push:
     branches: [master]
     paths:
@@ -18,7 +19,19 @@ jobs:
       contents: write
 
     steps:
+      # master only accepts pushes from PRs, the merge queue, or the smg-actions
+      # app (ruleset bypass). The default GITHUB_TOKEN pushes as
+      # github-actions[bot], which the ruleset rejects, so mint an app token.
+      - id: smg-actions
+        uses: getsentry/action-github-app-token@v3
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          token: ${{ steps.smg-actions.outputs.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -107,9 +120,12 @@ jobs:
 
       - name: Commit updated renders
         if: steps.git-check.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.smg-actions.outputs.token }}
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --local user.name "smg-actions[bot]"
+          git config --local user.email "smg-actions[bot]@users.noreply.github.com"
           git add testdata/**/*.png
           git commit -m "Auto-render example labels [skip ci]"
-          git push
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          git push origin HEAD:master

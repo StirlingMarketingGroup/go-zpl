@@ -1,4 +1,7 @@
-// Example demonstrating the render package for converting ZPL labels to images.
+// Render builds a UPS-style shipping label and writes it to label.png in the
+// current directory, then prints the ZPL to stdout.
+//
+//	go run ./examples/render
 package main
 
 import (

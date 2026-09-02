@@ -1,4 +1,11 @@
-// Package main demonstrates basic usage of the go-zpl library.
+// Basic builds a 4×6 inch shipping label at 203 DPI: a border, company header,
+// separators, a ship-to block, a Code 128 tracking barcode, a QR code, and
+// weight/service fields. It prints the ZPL to stdout.
+//
+//	go run ./examples/basic
+//
+// Pipe the output to zplrender, or paste it into the web demo at
+// https://stirlingmarketinggroup.github.io/go-zpl/ to preview the label.
 package main
 
 import (

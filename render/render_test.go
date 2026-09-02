@@ -545,3 +545,36 @@ func TestSaveReferenceImages(t *testing.T) {
 		Add(zpl.NewFieldData("Rotated 270")), 400, 400)
 }
 */
+
+func TestRenderDefaultCanvasFollowsDPI(t *testing.T) {
+	// A label with no ^PW/^LL and a renderer with no WithSize falls back to a
+	// 4×6 inch canvas, which must scale with the renderer's DPI rather than
+	// always being the 203 DPI 812×1218.
+	label := zpl.NewLabel().TextField(10, 10, zpl.Font0, 20, 20, "dpi")
+	cases := []struct {
+		dpi    zpl.DPI
+		width  int
+		height int
+	}{
+		{zpl.DPI203, 812, 1218},
+		{zpl.DPI300, 1200, 1800},
+		{zpl.DPI600, 2400, 3600},
+		{0, 812, 1218},
+	}
+	for _, c := range cases {
+		img, err := (&Renderer{DPI: c.dpi}).Render(label)
+		if err != nil {
+			t.Fatalf("DPI %d: %v", c.dpi, err)
+		}
+		if b := img.Bounds(); b.Dx() != c.width || b.Dy() != c.height {
+			t.Errorf("DPI %d: expected %dx%d, got %dx%d", c.dpi, c.width, c.height, b.Dx(), b.Dy())
+		}
+	}
+}
+
+func TestRenderRejectsUnsupportedDPI(t *testing.T) {
+	label := zpl.NewLabel().TextField(10, 10, zpl.Font0, 20, 20, "dpi")
+	if _, err := (&Renderer{DPI: zpl.DPI(-1)}).Render(label); err == nil {
+		t.Error("expected an error for an unsupported DPI, got nil")
+	}
+}

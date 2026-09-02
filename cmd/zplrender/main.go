@@ -1,4 +1,46 @@
-// zplrender converts ZPL files to images
+// Zplrender converts ZPL files to PNG or JPEG images.
+//
+// Install:
+//
+//	go install github.com/StirlingMarketingGroup/go-zpl/cmd/zplrender@latest
+//
+// Usage:
+//
+//	zplrender [options] <input.zpl>
+//	zplrender [options] < input.zpl
+//	cat input.zpl | zplrender [options]
+//
+// Flags:
+//
+//	-dpi int
+//	      Printer DPI (203, 300, or 600) (default 203); sizes the default
+//	      4×6 inch canvas when the ZPL and -width/-height give no size
+//	-width int
+//	      Label width in dots (0 = auto from ZPL)
+//	-height int
+//	      Label height in dots (0 = auto from ZPL)
+//	-format string
+//	      Output format: png or jpeg (default "png")
+//	-quality int
+//	      JPEG quality (1-100) (default 90)
+//	-o string
+//	      Output file (default: input.<format>, or stdout if input is stdin)
+//	-apply-label-home
+//	      Apply label home offsets (^LH) - default ignores for cleaner previews
+//	-help, -h
+//	      Show help
+//
+// With no filename, or with "-", ZPL is read from stdin. Stdin with no -o
+// writes the image to stdout. Only the first printable ^XA...^XZ block is
+// rendered; split multi-page ZPL into separate files, or use zpl.ParseAll with
+// render.RenderAll in Go.
+//
+//	zplrender label.zpl
+//	zplrender -o output.png label.zpl
+//	zplrender -dpi 300 label.zpl
+//	zplrender -format jpeg label.zpl
+//	cat label.zpl | zplrender -o output.png
+//	zplrender -help
 package main
 
 import (
@@ -20,7 +62,7 @@ var (
 	height         = flag.Int("height", 0, "Label height in dots (0 = auto from ZPL)")
 	format         = flag.String("format", "png", "Output format: png or jpeg")
 	quality        = flag.Int("quality", 90, "JPEG quality (1-100)")
-	output         = flag.String("o", "", "Output file (default: input.png or stdout if input is stdin)")
+	output         = flag.String("o", "", "Output file (default: input.<format>, or stdout if input is stdin)")
 	applyLabelHome = flag.Bool("apply-label-home", false, "Apply label home offsets (^LH) - default ignores for cleaner previews")
 	showHelp       = flag.Bool("help", false, "Show help")
 	showHelpH      = flag.Bool("h", false, "Show help")
@@ -145,18 +187,8 @@ func processDataToFile(data []byte, outputFile string, dpiVal zpl.DPI) (err erro
 		return fmt.Errorf("parsing ZPL: %w", err)
 	}
 
-	// Determine dimensions
-	w := *width
-	h := *height
-	if w == 0 {
-		w = label.Width()
-		if w == 0 {
-			w = 812 // Default 4" at 203 DPI
-		}
-	}
-
-	// Create renderer (ignore margins by default for cleaner previews)
-	renderer := render.New(dpiVal).WithSize(w, h).WithIgnoreLabelHome(!*applyLabelHome)
+	// Zero dimensions pass through so Renderer applies its documented fallback.
+	renderer := render.New(dpiVal).WithSize(*width, *height).WithIgnoreLabelHome(!*applyLabelHome)
 
 	// Create output file
 	f, err := os.Create(outputFile) //nolint:gosec // User-provided filename is intended
@@ -195,18 +227,8 @@ func processDataToStdout(data []byte, dpiVal zpl.DPI) error {
 		return fmt.Errorf("parsing ZPL: %w", err)
 	}
 
-	// Determine dimensions
-	w := *width
-	h := *height
-	if w == 0 {
-		w = label.Width()
-		if w == 0 {
-			w = 812 // Default 4" at 203 DPI
-		}
-	}
-
-	// Create renderer (ignore margins by default for cleaner previews)
-	renderer := render.New(dpiVal).WithSize(w, h).WithIgnoreLabelHome(!*applyLabelHome)
+	// Zero dimensions pass through so Renderer applies its documented fallback.
+	renderer := render.New(dpiVal).WithSize(*width, *height).WithIgnoreLabelHome(!*applyLabelHome)
 
 	// Render to stdout
 	if *format == "jpeg" {

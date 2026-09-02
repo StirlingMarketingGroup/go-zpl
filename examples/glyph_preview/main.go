@@ -1,4 +1,8 @@
-// Preview the glyph chart ZPL files using our renderer
+// GlyphPreview renders the Font 0 glyph chart used to calibrate fonts against
+// real printer output. It writes glyph_chart_preview.png in the current
+// directory.
+//
+//	go run ./examples/glyph_preview
 package main
 
 import (

@@ -1,4 +1,5 @@
-// Package main provides a C shared library for ZPL rendering.
+// Libzpl is a C shared library that exposes go-zpl rendering to C and other
+// languages via FFI.
 //
 // Build with:
 //
@@ -7,6 +8,16 @@
 //	go build -buildmode=c-shared -o libzpl.dll ./cmd/libzpl    # Windows
 //
 // This produces both the shared library and a C header file (libzpl.h).
+//
+// Exported C functions:
+//
+//   - zpl_render_png — render ZPL to PNG with DPI and size arguments
+//   - zpl_render_png_simple — render ZPL to PNG at 203 DPI with auto size
+//   - zpl_free — free PNG buffers returned by the render functions
+//   - zpl_version — library version string; do not free
+//
+// Rust users should use the zpl-rs crate instead of calling this library
+// directly.
 //
 //nolint:gocritic // CGO requires separate import "C" block which triggers false dupImport warnings
 package main
@@ -68,18 +79,8 @@ func zpl_render_png( //nolint:revive,stylecheck // exported C function uses snak
 		return ZPL_ERR_PARSE
 	}
 
-	// Determine dimensions
-	w := int(width)
-	h := int(height)
-	if w == 0 {
-		w = label.Width()
-		if w == 0 {
-			w = 812 // Default 4" at 203 DPI
-		}
-	}
-
-	// Create renderer
-	renderer := render.New(zpl.DPI(dpi)).WithSize(w, h).WithIgnoreLabelHome(true)
+	// Zero dimensions pass through so Renderer applies its documented fallback.
+	renderer := render.New(zpl.DPI(dpi)).WithSize(int(width), int(height)).WithIgnoreLabelHome(true)
 
 	// Render to PNG
 	var buf bytes.Buffer

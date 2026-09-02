@@ -1,4 +1,24 @@
-// zplprint sends ZPL files directly to a USB Zebra printer on macOS
+// Zplprint sends a .zpl file raw to a USB Zebra printer on macOS through CUPS.
+//
+// Usage:
+//
+//	zplprint <file.zpl> [printer-name]
+//
+// Printing always invokes:
+//
+//	lp -d ZebraRaw -o raw
+//
+// The optional printer name (or auto-detection via lpinfo -v when omitted) is
+// only echoed in the "Sending <file> to <uri>" line; it does not select the
+// destination queue.
+//
+// If the ZebraRaw queue is missing, the program prints these CUPS setup steps:
+//
+//  1. Open http://localhost:631 in your browser
+//  2. Go to Administration > Add Printer
+//  3. Select your Zebra USB printer
+//  4. Name it 'ZebraRaw'
+//  5. For driver, choose 'Raw' or 'Generic Text-Only'
 package main
 
 import (

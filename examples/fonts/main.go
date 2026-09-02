@@ -1,4 +1,7 @@
-// Example demonstrating different fonts in the render package.
+// Fonts compares Font 0 (scalable) and Font E (OCR-B) on one label and writes
+// the rendered image to fonts.png in the current directory.
+//
+//	go run ./examples/fonts
 package main
 
 import (

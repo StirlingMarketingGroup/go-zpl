@@ -1,6 +1,17 @@
-// Package render provides image rendering capabilities for ZPL labels.
-// It converts ZPL Label objects to bitmap images that approximate
-// what a Zebra printer would produce.
+// Package render converts ZPL labels into bitmap images. The target is
+// pixel-for-pixel parity with a real Zebra printer; any deviation is a bug
+// (^POI print-orientation inversion is one known gap).
+//
+// # Usage
+//
+//	renderer := render.New(zpl.DPI203).WithSize(812, 1218)
+//	err := renderer.RenderPNG(label, w)
+//
+// Render returns an image.Image with a white background and black elements.
+// RenderAll renders parsed labels one image each; pair it with zpl.ParseAll,
+// which splits multi-page ZPL and skips setup-only blocks.
+// IgnoreLabelHome is false by default so ^LH offsets match the printer;
+// set it true for cleaner previews that ignore those offsets.
 package render
 
 import (
@@ -19,7 +30,10 @@ import (
 
 // Renderer holds configuration for rendering ZPL labels to images.
 type Renderer struct {
-	// DPI is the printer resolution (203, 300, or 600 dots per inch).
+	// DPI is the printer resolution (203, 300, or 600 dots per inch); zero means
+	// DPI203. It sizes the default 4×6 inch canvas when neither the renderer nor
+	// the label sets a size; ZPL coordinates are already in dots and are not
+	// scaled.
 	DPI zpl.DPI
 
 	// Width is the label width in dots. If zero, uses the label's configured width.
@@ -34,8 +48,8 @@ type Renderer struct {
 	IgnoreLabelHome bool
 }
 
-// New creates a new Renderer with the given DPI.
-// Width and height will be taken from the label if not set.
+// New creates a new Renderer with the given DPI (203, 300, or 600; zero means
+// DPI203). Width and height will be taken from the label if not set.
 func New(dpi zpl.DPI) *Renderer {
 	return &Renderer{DPI: dpi}
 }
@@ -59,12 +73,24 @@ func (r *Renderer) WithIgnoreLabelHome(ignore bool) *Renderer {
 // The returned image uses white background with black elements,
 // matching thermal label printer output.
 func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
+	// A zero-value Renderer literal has no DPI; treat it as the 203 DPI default
+	// so the fallback canvas is never 0×0.
+	dpi := r.DPI
+	if dpi == 0 {
+		dpi = zpl.DPI203
+	}
+	switch dpi {
+	case zpl.DPI203, zpl.DPI300, zpl.DPI600:
+	default:
+		return nil, fmt.Errorf("unsupported DPI %d: want 203, 300, or 600", dpi)
+	}
+
 	width := r.Width
 	if width == 0 {
 		width = label.Width()
 	}
 	if width == 0 {
-		width = 812 // Default 4-inch label at 203 DPI
+		width = zpl.ToDots(4, zpl.UnitInches, dpi)
 	}
 
 	height := r.Height
@@ -72,7 +98,7 @@ func (r *Renderer) Render(label *zpl.Label) (image.Image, error) {
 		height = label.Height()
 	}
 	if height == 0 {
-		height = 1218 // Default 6-inch label at 203 DPI
+		height = zpl.ToDots(6, zpl.UnitInches, dpi)
 	}
 
 	canvas, err := newCanvas(width, height)

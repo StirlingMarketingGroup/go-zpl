@@ -105,7 +105,7 @@ At build time the crate stages the prebuilt `libzpl` shared library for the targ
 
 | Var | Effect |
 |-----|--------|
-| `LIBZPL_VERSION` | libzpl release to download (default: latest GitHub release). Changing it replaces the staged library on the next build. |
+| `LIBZPL_VERSION` | libzpl release to download (default: the release matching this crate's version). Must name a release from 0.1.10 on (earlier releases use other archive names). Changing it replaces the staged library on the next build. |
 | `LIBZPL_PATH` | path to an already-built libzpl shared library for the target; staged instead of downloading (offline builds, a locally built `cmd/libzpl`, CI caches). Wins over `LIBZPL_VERSION`; no network access. |
 | `LIBZPL_COPY_TO` | directory to also copy the staged library into (created if missing). Opt-in staging hook for bundlers; writes outside `OUT_DIR` on purpose. |
 

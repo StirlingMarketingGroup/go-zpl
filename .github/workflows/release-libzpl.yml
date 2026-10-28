@@ -161,43 +161,47 @@ jobs:
           path: artifacts
 
       - name: Create release archives
+        id: archives
         run: |
+          tag="${{ github.event.release.tag_name }}"
+          version="${tag#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
           mkdir -p release
 
           # Linux amd64
           cd artifacts/libzpl-linux-amd64
-          tar -czvf ../../release/libzpl-linux-amd64.tar.gz *
+          tar -czvf "../../release/libzpl_${version}_linux_amd64.tar.gz" *
           cd ../..
 
           # Linux arm64
           cd artifacts/libzpl-linux-arm64
-          tar -czvf ../../release/libzpl-linux-arm64.tar.gz *
+          tar -czvf "../../release/libzpl_${version}_linux_arm64.tar.gz" *
           cd ../..
 
           # macOS (include all variants)
           cd artifacts/libzpl-darwin
-          tar -czvf ../../release/libzpl-darwin.tar.gz *
+          tar -czvf "../../release/libzpl_${version}_macos_universal.tar.gz" *
           cd ../..
 
           # Windows amd64
           cd artifacts/libzpl-windows-amd64
-          zip -r ../../release/libzpl-windows-amd64.zip *
+          zip -r "../../release/libzpl_${version}_windows_amd64.zip" *
           cd ../..
 
           # Windows arm64
           cd artifacts/libzpl-windows-arm64
-          zip -r ../../release/libzpl-windows-arm64.zip *
+          zip -r "../../release/libzpl_${version}_windows_arm64.zip" *
           cd ../..
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/libzpl-linux-amd64.tar.gz
-            release/libzpl-linux-arm64.tar.gz
-            release/libzpl-darwin.tar.gz
-            release/libzpl-windows-amd64.zip
-            release/libzpl-windows-arm64.zip
+            release/libzpl_${{ steps.archives.outputs.version }}_linux_amd64.tar.gz
+            release/libzpl_${{ steps.archives.outputs.version }}_linux_arm64.tar.gz
+            release/libzpl_${{ steps.archives.outputs.version }}_macos_universal.tar.gz
+            release/libzpl_${{ steps.archives.outputs.version }}_windows_amd64.zip
+            release/libzpl_${{ steps.archives.outputs.version }}_windows_arm64.zip
 
   publish-crate:
     name: Publish zpl-rs

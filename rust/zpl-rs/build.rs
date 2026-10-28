@@ -11,13 +11,14 @@ const GITHUB_RELEASE_URL: &str =
 enum Source {
     /// A library the user already has on disk (LIBZPL_PATH).
     File(PathBuf),
-    /// A GitHub release to download (LIBZPL_VERSION or the latest release).
+    /// A GitHub release to download (LIBZPL_VERSION, or this crate's version).
     Release(String),
 }
 
 /// Everything the build script decides per target, decided in one place.
 struct Platform {
-    archive_name: &'static str,
+    os_arch: &'static str,
+    archive_ext: &'static str,
     extract_name: &'static str,
     lib_name: &'static str,
     /// Windows links through `kind = "raw-dylib"` in src/lib.rs instead: the release
@@ -78,7 +79,8 @@ fn platform(target: &str) -> Platform {
     let mac_rpaths: &'static [&'static str] = &["@executable_path"];
     match target {
         t if t.contains("x86_64") && t.contains("linux") => Platform {
-            archive_name: "libzpl-linux-amd64.tar.gz",
+            os_arch: "linux_amd64",
+            archive_ext: "tar.gz",
             extract_name: "libzpl-linux-amd64.so",
             lib_name: "libzpl.so",
             link_lib: true,
@@ -86,7 +88,8 @@ fn platform(target: &str) -> Platform {
             rewrite_install_name: false,
         },
         t if t.contains("aarch64") && t.contains("linux") => Platform {
-            archive_name: "libzpl-linux-arm64.tar.gz",
+            os_arch: "linux_arm64",
+            archive_ext: "tar.gz",
             extract_name: "libzpl-linux-arm64.so",
             lib_name: "libzpl.so",
             link_lib: true,
@@ -95,7 +98,8 @@ fn platform(target: &str) -> Platform {
         },
         // One universal binary serves both macOS architectures.
         t if t.contains("darwin") => Platform {
-            archive_name: "libzpl-darwin.tar.gz",
+            os_arch: "macos_universal",
+            archive_ext: "tar.gz",
             extract_name: "libzpl-darwin-universal.dylib",
             lib_name: "libzpl.dylib",
             link_lib: true,
@@ -103,7 +107,8 @@ fn platform(target: &str) -> Platform {
             rewrite_install_name: true,
         },
         t if t.contains("x86_64") && t.contains("windows") => Platform {
-            archive_name: "libzpl-windows-amd64.zip",
+            os_arch: "windows_amd64",
+            archive_ext: "zip",
             extract_name: "libzpl-windows-amd64.dll",
             lib_name: "zpl.dll",
             link_lib: false,
@@ -111,7 +116,8 @@ fn platform(target: &str) -> Platform {
             rewrite_install_name: false,
         },
         t if t.contains("aarch64") && t.contains("windows") => Platform {
-            archive_name: "libzpl-windows-arm64.zip",
+            os_arch: "windows_arm64",
+            archive_ext: "zip",
             extract_name: "libzpl-windows-arm64.dll",
             lib_name: "zpl.dll",
             link_lib: false,
@@ -142,7 +148,8 @@ fn select_source() -> Source {
             Source::File(path)
         }
         _ => {
-            let version = env::var("LIBZPL_VERSION").unwrap_or_else(|_| get_latest_version());
+            let version = env::var("LIBZPL_VERSION")
+                .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string());
             Source::Release(version)
         }
     }
@@ -281,38 +288,12 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// Get the latest release version from GitHub API
-fn get_latest_version() -> String {
-    // Try to get from GitHub API
-    if let Ok(response) = reqwest::blocking::Client::new()
-        .get("https://api.github.com/repos/StirlingMarketingGroup/go-zpl/releases/latest")
-        .header("User-Agent", "zpl-rs-build")
-        .send()
-    {
-        if response.status().is_success() {
-            if let Ok(text) = response.text() {
-                // Simple JSON parsing for tag_name
-                if let Some(start) = text.find("\"tag_name\":\"") {
-                    let rest = &text[start + 12..];
-                    if let Some(end) = rest.find('"') {
-                        let tag = &rest[..end];
-                        // Strip 'v' prefix if present
-                        return tag.trim_start_matches('v').to_string();
-                    }
-                }
-            }
-        }
-    }
-
-    // Fallback to known version
-    "0.1.1".to_string()
-}
-
 fn download_and_extract(version: &str, platform: &Platform, out_path: &Path) -> io::Result<()> {
-    let url = format!(
-        "{}/v{}/{}",
-        GITHUB_RELEASE_URL, version, platform.archive_name
+    let archive_name = format!(
+        "libzpl_{}_{}.{}",
+        version, platform.os_arch, platform.archive_ext
     );
+    let url = format!("{}/v{}/{}", GITHUB_RELEASE_URL, version, archive_name);
 
     let response = reqwest::blocking::get(&url).map_err(io::Error::other)?;
     if !response.status().is_success() {
@@ -323,14 +304,14 @@ fn download_and_extract(version: &str, platform: &Platform, out_path: &Path) -> 
     }
     let bytes = response.bytes().map_err(io::Error::other)?;
 
-    if platform.archive_name.ends_with(".tar.gz") {
+    if platform.archive_ext == "tar.gz" {
         extract_tar_gz(&bytes, platform.extract_name, out_path)
-    } else if platform.archive_name.ends_with(".zip") {
+    } else if platform.archive_ext == "zip" {
         extract_zip(&bytes, platform.extract_name, out_path)
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Unknown archive type: {}", platform.archive_name),
+            format!("Unknown archive type: {}", platform.archive_ext),
         ))
     }
 }

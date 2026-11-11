@@ -8,14 +8,13 @@ Instructions for AI agents working on this codebase.
 
 ### The Standard of Correctness
 
-Rendering output that differs from what a real ZPL printer produces, or what Labelary/FedEx/USPS/UPS renderers produce, is considered a **bug**. We strive for pixel-perfect accuracy.
+The reference is a real Zebra printer. Rendering that differs from what a Zebra prints is a **bug**. We strive for pixel-perfect accuracy.
 
-- If our rendering differs from a real Zebra printer, that's an error
-- If our barcode differs from what Labelary produces, that's an error
-- If our font rendering differs from the ZPL specification, that's an error
-- **Striving for perfection is the goal**
-
-When in doubt, test against real hardware or authoritative reference implementations. Document any known deviations and treat them as issues to be fixed, not acceptable tradeoffs.
+- **How to check a rule:** print the ZPL on a Zebra-brand printer, scan the label, and compare the scan with our render. `cmd/zplprint` sends a `.zpl` file raw to the printer.
+- **Labelary is not the reference.** It is useful for a first look, and it is wrong in places: it spaces `^TB` lines 1.25 font heights apart, and a Zebra spaces them one font height apart. Never settle a rule on Labelary alone, and do not add its pictures as references.
+- **Keep the scan.** Save it beside the fixture as `testdata/visual/<label>/scan.png`. Fixture labels hold made-up names, addresses and tracking numbers, never a real one.
+- **A barcode must scan.** A test reads it back with a barcode reader and gets the data the ZPL asked for.
+- Write down any known difference from the print and treat it as something to fix, not an acceptable tradeoff.
 
 ## Project Overview
 

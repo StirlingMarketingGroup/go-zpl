@@ -3,3 +3,7 @@ title = "ZPL Label Renderer"
 
 [params]
 description = "Online ZPL to PNG renderer - no server required"
+
+# js.Build bundles dazzle-zpl from the repo-root node_modules, which sits outside this folder.
+[security.node.permissions]
+allowRead = ['.', '../node_modules']

@@ -72,6 +72,20 @@ var visualTestCases = []visualTestCase{
 		HeightDots: 1218, // 6" at 203 DPI
 		DPI:        zpl.DPI203,
 	},
+	{
+		Name:       "USPS APO Military 2026-11",
+		Dir:        "usps_apo_2026_11",
+		WidthDots:  812,
+		HeightDots: 1218,
+		DPI:        zpl.DPI203,
+	},
+	{
+		Name:       "USPS Ground Advantage 2026-11",
+		Dir:        "usps_domestic_2026_11",
+		WidthDots:  812,
+		HeightDots: 1218,
+		DPI:        zpl.DPI203,
+	},
 }
 
 // TestVisualRegression compares our rendered output against our own baseline images.

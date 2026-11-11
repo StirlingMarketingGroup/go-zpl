@@ -272,6 +272,7 @@ renderer.RenderPNG(label, f)
 - `^CF` - Change default font
 - `^CI` - Character set
 - `^FB` - Field block (text wrapping)
+- `^TB` - Text block (wraps to a width and height in dots)
 - `^FO` - Field origin
 - `^FT` - Field typeset
 - `^FD` / `^FS` - Field data / separator

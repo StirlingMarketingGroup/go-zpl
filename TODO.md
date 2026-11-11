@@ -60,6 +60,7 @@ Comprehensive task list for the go-zpl library.
 - [x] `^FD` - Field data
 - [x] `^FS` - Field separator
 - [x] `^FB` - Field block (text wrapping, justification)
+- [x] `^TB` - Text block
 - [ ] `^FP` - Field parameter (direction)
 - [x] `^FW` - Field direction (default rotation for subsequent fields)
 - [x] `^FR` - Field reverse print

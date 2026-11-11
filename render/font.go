@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
-	"sync"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -41,10 +40,10 @@ type fontManager struct {
 	fontE   *opentype.Font // OCR-B
 	fontCJK *opentype.Font // Noto Sans CJK SC Bold (fallback for CJK characters)
 
-	// Cache for font faces at different sizes
+	// Cache for font faces at different sizes. A font.Face is not safe for
+	// concurrent use, so every canvas has its own cache over the shared fonts.
 	faceCache    map[faceCacheKey]font.Face
 	faceCacheCJK map[faceCacheKey]font.Face
-	mu           sync.RWMutex
 }
 
 type faceCacheKey struct {
@@ -122,15 +121,8 @@ func newFontManager() (*fontManager, error) {
 		return nil, err
 	}
 
-	return &fontManager{
-		font0:        f0,
-		fontA:        fA,
-		fontD:        fD,
-		fontE:        fE,
-		fontCJK:      fCJK,
-		faceCache:    make(map[faceCacheKey]font.Face),
-		faceCacheCJK: make(map[faceCacheKey]font.Face),
-	}, nil
+	// The face caches stay nil: each canvas makes its own.
+	return &fontManager{font0: f0, fontA: fA, fontD: fD, fontE: fE, fontCJK: fCJK}, nil
 }
 
 // getFont returns the opentype.Font for the given ZPL font identifier.
@@ -156,18 +148,6 @@ func (fm *fontManager) getFont(f zpl.Font) *opentype.Font {
 // The face is cached for reuse.
 func (fm *fontManager) getFace(f zpl.Font, height int) (font.Face, error) {
 	key := faceCacheKey{font: f, height: height}
-
-	fm.mu.RLock()
-	if face, ok := fm.faceCache[key]; ok {
-		fm.mu.RUnlock()
-		return face, nil
-	}
-	fm.mu.RUnlock()
-
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
-
-	// Double-check after acquiring write lock
 	if face, ok := fm.faceCache[key]; ok {
 		return face, nil
 	}
@@ -194,17 +174,6 @@ func (fm *fontManager) getFace(f zpl.Font, height int) (font.Face, error) {
 // getCJKFace returns the CJK fallback font face for the given size.
 func (fm *fontManager) getCJKFace(height int) (font.Face, error) {
 	key := faceCacheKey{font: zpl.Font0, height: height} // Use Font0 as key placeholder
-
-	fm.mu.RLock()
-	if face, ok := fm.faceCacheCJK[key]; ok {
-		fm.mu.RUnlock()
-		return face, nil
-	}
-	fm.mu.RUnlock()
-
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
-
 	if face, ok := fm.faceCacheCJK[key]; ok {
 		return face, nil
 	}
@@ -659,8 +628,8 @@ func (fm *fontManager) drawTextRotated90(img *image.RGBA, face font.Face, text s
 					// y is start of text, extends downward
 					destY = y + tx
 				} else {
-					// Origin mode: (x, y) is top-left of bounding box
-					destX = x + textHeight - 1 - ty
+					// Origin mode: cap top sits on the far edge of a box `height` dots deep.
+					destX = x + height - 1 - ty
 					destY = y + tx
 				}
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
@@ -781,9 +750,9 @@ func (fm *fontManager) drawTextRotated180(img *image.RGBA, face font.Face, text 
 					destX = x - tx
 					destY = y + ascent - ty
 				} else {
-					// Origin mode: top-left at (x, y), text extends right and down
+					// Origin mode: cap top sits on the far edge of a box `height` dots deep.
 					destX = x + scaledWidth - 1 - tx
-					destY = y + textHeight - 1 - ty
+					destY = y + height - 1 - ty
 				}
 				if destX >= 0 && destX < img.Bounds().Max.X && destY >= 0 && destY < img.Bounds().Max.Y {
 					dst := img.RGBAAt(destX, destY)

@@ -18,7 +18,7 @@ func TestFieldOrigin(t *testing.T) {
 		{
 			name:    "origin with justification",
 			field:   NewFieldOrigin(50, 100).WithJustification(JustifyRight),
-			wantZPL: "^FO50,100,R",
+			wantZPL: "^FO50,100,1",
 		},
 		{
 			name:    "origin at zero",
@@ -69,9 +69,14 @@ func TestFieldTypeset(t *testing.T) {
 			wantZPL: "^FT100,200",
 		},
 		{
-			name:    "typeset with justification",
+			name:    "typeset with left justification",
+			field:   NewFieldTypeset(100, 200).WithJustification(JustifyLeft),
+			wantZPL: "^FT100,200,0",
+		},
+		{
+			name:    "typeset with center justification",
 			field:   NewFieldTypeset(100, 200).WithJustification(JustifyCenter),
-			wantZPL: "^FT100,200,C",
+			wantZPL: "^FT100,200",
 		},
 	}
 

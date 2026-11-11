@@ -52,6 +52,20 @@ const testCases = [
     height: 1218,
     dpi: 203,
   },
+  {
+    name: 'USPS APO Military 2026-11',
+    zplPath: 'testdata/visual/usps_apo_2026_11/label.zpl',
+    width: 812,
+    height: 1218,
+    dpi: 203,
+  },
+  {
+    name: 'USPS Ground Advantage 2026-11',
+    zplPath: 'testdata/visual/usps_domestic_2026_11/label.zpl',
+    width: 812,
+    height: 1218,
+    dpi: 203,
+  },
 ];
 
 test.describe('WASM vs CLI Rendering', () => {

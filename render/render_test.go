@@ -2,10 +2,13 @@ package render
 
 import (
 	"bytes"
+	"image"
 	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
@@ -502,6 +505,174 @@ func TestRenderer_TextHorizontalScaling(t *testing.T) {
 	}
 	if !hasBlack2 {
 		t.Error("Expected black pixels in label2 (condensed scaling)")
+	}
+}
+
+// A server renders labels on many goroutines at once.
+func TestRenderer_ConcurrentRenders(t *testing.T) {
+	label, err := zpl.Parse("^XA^CF0,40^FO50,50^FDCONCURRENT RENDERS^FS^XZ")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			for range 20 {
+				if _, err := New(zpl.DPI203).Render(label); err != nil {
+					t.Error(err)
+				}
+			}
+		})
+	}
+	wg.Wait()
+}
+
+// darkBounds renders one label at 4x6 inches and returns the box around its dark pixels.
+func darkBounds(t *testing.T, src string) image.Rectangle {
+	t.Helper()
+	label, err := zpl.Parse(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	img, err := New(zpl.DPI203).WithSize(812, 1218).Render(label)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	var dark image.Rectangle
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			if r, _, _, _ := img.At(x, y).RGBA(); r < 0x8000 {
+				dark = dark.Union(image.Rect(x, y, x+1, y+1))
+			}
+		}
+	}
+	return dark
+}
+
+// The expected boxes were measured on Labelary and agree with a Zebra ZP 450
+// print of the same fields. The ^TB boxes and the last case come from the print.
+func TestFieldPlacement(t *testing.T) {
+	tests := []struct {
+		zpl                    string
+		xmin, xmax, ymin, ymax int
+	}{
+		{`^FO100,100^FB200,3,0,L^FDAAAA BBBB CCCC DDDD^FS`, 101, 289, 100, 170},
+		{`^FT100,400^FB200,3,0,L^FDAAAA BBBB CCCC DDDD^FS`, 101, 289, 290, 360},
+		{`^FT400,400^FB200,3,0,L^FDXX^FS`, 401, 442, 290, 319},
+		{`^FO780,450,1^FDRIGHT^FS`, 680, 778, 450, 479},
+		{`^FT780,520,1^FDRIGHT^FS`, 680, 778, 490, 520},
+		{`^FWR^FO100,600^FB200,3,0,L^FDAAAA BBBB CCCC DDDD^FS`, 149, 219, 601, 789},
+		{`^FWR^FO300,600^FB200,3,0,R^FDXX^FS`, 390, 419, 757, 798},
+		{`^FWR^FT500,600^FB200,3,0,L^FDAAAA BBBB CCCC DDDD^FS`, 539, 609, 601, 789},
+		{`^FWR^FT700,600^FB200,3,0,L^FDXX^FS`, 780, 809, 601, 642},
+		{`^FWR^FO100,900,1^FDRIGHT^FS`, 69, 99, 903, 1001},
+		{`^FWR^FT300,900,1^FDRIGHT^FS`, 299, 329, 800, 898},
+		{`^FWR^FO500,900^FDPLAIN^FS`, 510, 539, 903, 995},
+		{`^FWR^FT700,900^FDPLAIN^FS`, 700, 729, 903, 995},
+		{`^FWB^FO100,1050^FB150,2,0,L^FDAAAA BBBB^FS`, 100, 169, 1112, 1198},
+		{`^FWI^FO400,1050^FB150,2,0,L^FDAAAA BBBB^FS`, 462, 548, 1060, 1129},
+		{`^FWI^FT300,800^FB150,2,0,L^FDAAAA BBBB^FS`, 212, 298, 800, 869},
+		{`^FWB^FT100,1150^FB150,2,0,L^FDAAAA BBBB^FS`, 30, 99, 1062, 1148},
+		{`^FO50,50^TBN,200,100^FDAAAA BBBB CCCC DDDD EEEE FFFF GGGG^FS`, 51, 240, 54, 153},
+		{`^FT50,300^TBN,200,100^FDAAAA BBBB CCCC DDDD^FS`, 52, 240, 203, 274},
+		{`^FO50,400^TBR,200,100^FDAAAA BBBB CCCC DDDD EEEE FFFF GGGG^FS`, 50, 149, 401, 592},
+		{`^FO300,400^TBR,200,100^FDXX^FS`, 370, 399, 401, 442},
+		// The empty field uses up its ^FB, so the next field is not centered.
+		{`^FB808,1,0,C^FO10,972^FD^FS^FT270,1076^A0N,44,0^FD100000^FS`, 274, 394, 1041, 1076},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.zpl, func(t *testing.T) {
+			got := darkBounds(t, "^XA^CF0,40"+tt.zpl+"^XZ")
+			want := image.Rect(tt.xmin, tt.ymin, tt.xmax+1, tt.ymax+1)
+			if !got.In(want.Inset(-3)) || !want.In(got.Inset(-3)) {
+				t.Errorf("dark pixels in %v, want %v within 3 dots", got, want)
+			}
+		})
+	}
+}
+
+// A line drawn as a box one dot high is as thick as its border.
+func TestGraphicBoxIsAtLeastItsBorder(t *testing.T) {
+	tests := []struct {
+		zpl  string
+		want image.Rectangle
+	}{
+		{`^FO0,630^GB812,1,8^FS`, image.Rect(0, 630, 812, 638)},
+		{`^FO100,200^GB1,300,5^FS`, image.Rect(100, 200, 105, 500)},
+		{`^FO100,200^GB300,0,3^FS`, image.Rect(100, 200, 400, 203)},
+		{`^FO100,200^GB0,300,3^FS`, image.Rect(100, 200, 103, 500)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.zpl, func(t *testing.T) {
+			if got := darkBounds(t, "^XA"+tt.zpl+"^XZ"); got != tt.want {
+				t.Errorf("dark pixels in %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A Zebra wraps text that is too wide for a one-line ^FB and prints the
+// wrapped lines on top of each other, so the field never leaves its block.
+func TestFieldBlockOverflowOverprints(t *testing.T) {
+	got := darkBounds(t, `^XA^CF0,40^FO600,1000^FB150,1,0,C^FDAAAA BBBB CCCC^FS^XZ`)
+	if block := image.Rect(600, 1000, 750, 1040); got.Empty() || !got.In(block) {
+		t.Errorf("dark pixels in %v, want them inside the block %v", got, block)
+	}
+}
+
+func TestTextBlockSupersedesFieldBlock(t *testing.T) {
+	text := `^FDAAAA BBBB CCCC DDDD EEEE FFFF GGGG^FS`
+	both := darkBounds(t, `^XA^CF0,40^FO50,50^FB200,3,0,L^TBN,200,100`+text+`^XZ`)
+	only := darkBounds(t, `^XA^CF0,40^FO50,50^TBN,200,100`+text+`^XZ`)
+	if both.Empty() || both != only {
+		t.Errorf("^FB then ^TB draws in %v, ^TB alone in %v", both, only)
+	}
+}
+
+func TestDecodeFieldText(t *testing.T) {
+	tests := []struct {
+		name    string
+		text    string
+		charSet int
+		want    string
+	}{
+		{"code page 850", "PRIORITY MAIL\xa9", 13, "PRIORITY MAIL®"},
+		{"windows-1252", "ADVANTAGE\x99", 27, "ADVANTAGE™"},
+		{"utf-8", "™", 28, "™"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := decodeFieldText(tt.text, tt.charSet); got != tt.want {
+				t.Errorf("decodeFieldText(%q, %d) = %q, want %q", tt.text, tt.charSet, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEncodeCode128WithEscapes(t *testing.T) {
+	tests := []struct {
+		data string
+		want []int // without the check symbol
+	}{
+		{
+			data: ">;>8420221240000>89400100000000000000000",
+			want: []int{105, 102, 42, 2, 21, 24, 0, 0, 102, 94, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0},
+		},
+		{data: ">:ABC", want: []int{104, 33, 34, 35}},
+		{data: ">9", want: []int{103}},
+		{data: ">;1234>6AB", want: []int{105, 12, 34, 100, 33, 34}},
+		{data: "AB><CD", want: []int{104, 33, 34, 30, 35, 36}},
+		{data: ">;12><34", want: []int{105, 12, 100, 30, 19, 20}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.data, func(t *testing.T) {
+			got := encodeCode128WithEscapes(tt.data)
+			if !slices.Equal(got[:len(got)-1], tt.want) {
+				t.Errorf("values %v, want %v plus a check symbol", got, tt.want)
+			}
+		})
 	}
 }
 

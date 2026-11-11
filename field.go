@@ -23,11 +23,9 @@ func (f *FieldOrigin) WithJustification(j Justification) *FieldOrigin {
 }
 
 // ZPL returns the ZPL representation.
+// The third parameter is the digit form of z: 1 right, 0 left.
 func (f *FieldOrigin) ZPL() string {
-	if f.Justification != 0 {
-		return fmt.Sprintf("^FO%d,%d,%c", f.X, f.Y, f.Justification)
-	}
-	return fmt.Sprintf("^FO%d,%d", f.X, f.Y)
+	return fmt.Sprintf("^FO%d,%d%s", f.X, f.Y, fieldJustifyZPL(f.Justification))
 }
 
 // WriteTo writes the ZPL to the writer.
@@ -75,11 +73,22 @@ func (f *FieldTypeset) WithJustification(j Justification) *FieldTypeset {
 }
 
 // ZPL returns the ZPL representation.
+// The third parameter is the digit form of z: 1 right, 0 left.
 func (f *FieldTypeset) ZPL() string {
-	if f.Justification != 0 {
-		return fmt.Sprintf("^FT%d,%d,%c", f.X, f.Y, f.Justification)
+	return fmt.Sprintf("^FT%d,%d%s", f.X, f.Y, fieldJustifyZPL(f.Justification))
+}
+
+// fieldJustifyZPL is the ^FO/^FT z parameter. Right is 1, left is 0,
+// and every other value is omitted.
+func fieldJustifyZPL(j Justification) string {
+	switch j {
+	case JustifyRight:
+		return ",1"
+	case JustifyLeft:
+		return ",0"
+	default:
+		return ""
 	}
-	return fmt.Sprintf("^FT%d,%d", f.X, f.Y)
 }
 
 // WriteTo writes the ZPL to the writer.
@@ -181,6 +190,40 @@ func (f *FieldBlock) ZPL() string {
 // WriteTo writes the ZPL to the writer.
 func (f *FieldBlock) WriteTo(w io.Writer) (int64, error) {
 	n, err := io.WriteString(w, f.ZPL())
+	return int64(n), err
+}
+
+// TextBlock represents a ^TB command for a text block.
+// Orientation empty means the field keeps its own orientation.
+type TextBlock struct {
+	Orientation Orientation
+	Width       int
+	Height      int
+}
+
+// NewTextBlock creates a text block of the given width and height in dots.
+func NewTextBlock(width, height int) *TextBlock {
+	return &TextBlock{Width: width, Height: height}
+}
+
+// WithOrientation sets the block orientation. Empty keeps the field's own.
+func (t *TextBlock) WithOrientation(o Orientation) *TextBlock {
+	t.Orientation = o
+	return t
+}
+
+// ZPL returns the ZPL representation.
+func (t *TextBlock) ZPL() string {
+	orient := ""
+	if t.Orientation != 0 {
+		orient = string(t.Orientation)
+	}
+	return fmt.Sprintf("^TB%s,%d,%d", orient, t.Width, t.Height)
+}
+
+// WriteTo writes the ZPL to the writer.
+func (t *TextBlock) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, t.ZPL())
 	return int64(n), err
 }
 

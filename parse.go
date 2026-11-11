@@ -150,6 +150,8 @@ func (p *parser) parseCaretCommand() error {
 		return p.parseChangeFont()
 	case "FB":
 		return p.parseFieldBlock()
+	case "TB":
+		return p.parseTextBlock()
 	case "BY":
 		return p.parseBarcodeDefault()
 	case "BC":
@@ -323,7 +325,7 @@ func (p *parser) parseFieldOrigin() error {
 	params := p.readParams()
 	x := parseInt(getParam(params, 0), 0)
 	y := parseInt(getParam(params, 1), 0)
-	p.label.Add(NewFieldOrigin(x, y))
+	p.label.Add(NewFieldOrigin(x, y).WithJustification(fieldJustifyParam(getParam(params, 2))))
 	return nil
 }
 
@@ -331,8 +333,16 @@ func (p *parser) parseFieldTypeset() error {
 	params := p.readParams()
 	x := parseInt(getParam(params, 0), 0)
 	y := parseInt(getParam(params, 1), 0)
-	p.label.Add(NewFieldTypeset(x, y))
+	p.label.Add(NewFieldTypeset(x, y).WithJustification(fieldJustifyParam(getParam(params, 2))))
 	return nil
+}
+
+// fieldJustifyParam reads ^FO/^FT z. 1 is right; 0, 2, and empty stay unset.
+func fieldJustifyParam(z string) Justification {
+	if z == "1" {
+		return JustifyRight
+	}
+	return 0
 }
 
 func (p *parser) parseFieldDirection() error {
@@ -372,12 +382,12 @@ func (p *parser) parseFieldData() error {
 		p.pos++
 	}
 	data := sb.String()
-	if data != "" {
-		if p.fieldHexIndicator != 0 {
-			data = decodeHexEscapes(data, p.fieldHexIndicator)
-		}
-		p.label.Add(NewFieldData(data))
+	if p.fieldHexIndicator != 0 {
+		data = decodeHexEscapes(data, p.fieldHexIndicator)
 	}
+	// An empty ^FD is still a field: it uses up the ^FB, ^FR or barcode
+	// command before it, which must not reach the next field.
+	p.label.Add(NewFieldData(data))
 	// ^FH applies to the current field only; reset after ^FD/^FV
 	p.fieldHexIndicator = 0
 	return nil
@@ -480,6 +490,18 @@ func (p *parser) parseFieldBlock() error {
 		WithJustification(justification).
 		WithHangingIndent(hangingIndent)
 	p.label.Add(fb)
+	return nil
+}
+
+func (p *parser) parseTextBlock() error {
+	params := p.readParams()
+	var orient Orientation
+	if getParam(params, 0) != "" {
+		orient = Orientation(getParam(params, 0)[0])
+	}
+	width := parseInt(getParam(params, 1), 0)
+	height := parseInt(getParam(params, 2), 0)
+	p.label.Add(NewTextBlock(width, height).WithOrientation(orient))
 	return nil
 }
 
@@ -894,6 +916,12 @@ func (p *parser) parseGraphicField() error {
 		// Binary format: read exactly dataBytes of raw binary data
 		if dataBytes <= 0 {
 			return nil
+		}
+
+		// USPS Ship writes a line break between the comma and the data. The
+		// break is not data: counted, the data would end short of the next command.
+		for p.pos+dataBytes < len(p.input) && (p.input[p.pos] == '\r' || p.input[p.pos] == '\n') && p.input[p.pos+dataBytes] != '^' {
+			p.pos++
 		}
 
 		// Read the binary data directly - do NOT stop at ^ or any other character

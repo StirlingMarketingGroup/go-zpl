@@ -2,6 +2,7 @@ package render
 
 import (
 	"image/color"
+	"strings"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
 )
@@ -153,9 +154,12 @@ var code128CValues = map[string]int{
 
 // Code 128 special codes
 const (
-	code128CodeA  = 101 // Switch to Subset A
-	code128CodeB  = 100 // Switch to Subset B
+	code128FNC3   = 96  // FNC3
+	code128FNC2   = 97  // FNC2
+	code128Shift  = 98  // SHIFT
 	code128CodeC  = 99  // Switch to Subset C
+	code128CodeB  = 100 // Switch to Subset B (FNC4 when already in B)
+	code128CodeA  = 101 // Switch to Subset A (FNC4 when already in A)
 	code128FNC1   = 102 // FNC1
 	code128StartA = 103 // Start A
 	code128StartB = 104 // Start B
@@ -362,118 +366,136 @@ func encodeCode128C(data string) []int {
 	return values
 }
 
-// encodeCode128WithEscapes handles ZPL escape sequences in Code 128 data
-// ZPL escape sequences start with '>':
+// code128Switch is the symbol that switches to each subset.
+var code128Switch = map[byte]int{'A': code128CodeA, 'B': code128CodeB, 'C': code128CodeC}
+
+// code128SubsetValue returns the symbol value of r in subset A or B.
+func code128SubsetValue(subset byte, r rune) (int, bool) {
+	switch subset {
+	case 'A':
+		switch {
+		case r >= 0 && r < 32:
+			return int(r) + 64, true
+		case r >= 32 && r <= 95:
+			return int(r) - 32, true
+		default:
+			return 0, false
+		}
+	case 'B':
+		v, ok := code128BValues[r]
+		return v, ok
+	default:
+		return 0, false
+	}
+}
+
+// encodeCode128WithEscapes handles Zebra ^BC invocation codes, which start with '>':
 //
-//	>; - Switch to/start with Code C
-//	>: - Switch to/start with Code A
-//	>5 - FNC1
-//	>6 - FNC2
-//	>7 - FNC3
-//	>8 - FNC4
-//	>> - Literal '>' character
+//	>9 start A (103), >: start B (104), >; start C (105)
+//	>5 Code C (99), >6 Code B / FNC4 (100), >7 Code A / FNC4 (101)
+//	>8 FNC1 (102), >2 FNC3 (96), >3 FNC2 (97), >4 SHIFT (98)
+//	>< and >0 are a literal '>', >= is a literal '~'
+//
+// A start code is a start only at the beginning. Later, it switches subset.
+// Data with no start code begins in subset B. >1 is not a code.
 func encodeCode128WithEscapes(data string) []int {
 	if data == "" {
 		return []int{}
 	}
 
 	var values []int
-	currentSubset := byte('B') // Default to Subset B
-	started := false
+	subset := byte(0) // 0 until the start symbol is written
 
-	i := 0
-	for i < len(data) {
-		// Check for escape sequence
-		if data[i] == '>' && i+1 < len(data) {
+	for i := 0; i < len(data); {
+		// ch is the data character at i and size the bytes that spell it.
+		// An invocation code that is not a character sets value, the symbol
+		// it emits, and latch, the subset it selects.
+		ch, size := data[i], 1
+		value, latch := -1, byte(0)
+		if ch == '>' && i+1 < len(data) {
 			switch data[i+1] {
-			case ';': // Code C
-				if !started {
-					values = append(values, code128StartC)
-					currentSubset = 'C'
-					started = true
-				} else if currentSubset != 'C' {
-					values = append(values, code128CodeC)
-					currentSubset = 'C'
-				}
-				i += 2
-				continue
-			case ':': // Code A
-				if !started {
-					values = append(values, code128StartA)
-					currentSubset = 'A'
-					started = true
-				} else if currentSubset != 'A' {
-					values = append(values, code128CodeA)
-					currentSubset = 'A'
-				}
-				i += 2
-				continue
-			case '5': // FNC1
-				if !started {
-					values = append(values, code128StartC, code128FNC1) // FNC1 often used with GS1/Code C
-					currentSubset = 'C'
-					started = true
-				} else {
-					values = append(values, code128FNC1)
-				}
-				i += 2
-				continue
-			case '>': // Literal '>'
-				i++ // Skip first '>', process second as normal character
+			case '9':
+				value, latch = code128StartA, 'A'
+			case ':':
+				value, latch = code128StartB, 'B'
+			case ';':
+				value, latch = code128StartC, 'C'
+			case '5':
+				value, latch = code128CodeC, 'C'
+			case '6':
+				value, latch = code128CodeB, 'B'
+			case '7':
+				value, latch = code128CodeA, 'A'
+			case '8':
+				value = code128FNC1
+			case '2':
+				value = code128FNC3
+			case '3':
+				value = code128FNC2
+			case '4':
+				value = code128Shift
+			case '<', '0':
+				ch, size = '>', 2
+			case '=':
+				ch, size = '~', 2
 			}
 		}
 
-		// Start with default subset if not started
-		if !started {
+		if value >= code128StartA {
+			switch {
+			case subset == 0:
+				values = append(values, value)
+			case subset != latch:
+				// After the start, a start code only switches subset.
+				values = append(values, code128Switch[latch])
+			}
+			subset = latch
+			i += 2
+			continue
+		}
+
+		// Data with no start code begins in subset B.
+		if subset == 0 {
 			values = append(values, code128StartB)
-			currentSubset = 'B'
-			started = true
+			subset = 'B'
 		}
 
-		// Encode character based on current subset
-		switch currentSubset {
-		case 'C':
-			// Code C encodes digit pairs
-			if i+1 < len(data) && isDigit(rune(data[i])) && isDigit(rune(data[i+1])) {
-				pair := data[i : i+2]
-				if val, ok := code128CValues[pair]; ok {
-					values = append(values, val)
-				}
+		if value >= 0 {
+			values = append(values, value)
+			if latch != 0 {
+				subset = latch
+			}
+			i += 2
+			continue
+		}
+
+		if subset == 'C' {
+			if size == 1 && i+1 < len(data) && isDigit(rune(ch)) && isDigit(rune(data[i+1])) {
+				values = append(values, code128CValues[data[i:i+2]])
 				i += 2
-			} else {
-				// Can't encode as pair, switch to B
-				values = append(values, code128CodeB)
-				currentSubset = 'B'
-				// Don't advance i, re-process in Subset B
+				continue
 			}
-		case 'B':
-			if val, ok := code128BValues[rune(data[i])]; ok {
-				values = append(values, val)
-			}
-			i++
-		case 'A':
-			// Subset A is similar to B but with different character mapping
-			// For simplicity, use B values for printable ASCII
-			if val, ok := code128BValues[rune(data[i])]; ok {
-				values = append(values, val)
-			}
-			i++
+			// Subset C holds digit pairs only; anything else goes in B.
+			values = append(values, code128CodeB)
+			subset = 'B'
 		}
+		v, ok := code128SubsetValue(subset, rune(ch))
+		if !ok && subset == 'A' {
+			values = append(values, code128CodeB)
+			subset = 'B'
+			v, ok = code128SubsetValue(subset, rune(ch))
+		}
+		if ok {
+			values = append(values, v)
+		}
+		i += size
 	}
 
-	if len(values) == 0 {
-		return []int{}
-	}
-
-	// Calculate check digit
-	sum := values[0] // Start code
+	sum := values[0]
 	for j := 1; j < len(values); j++ {
 		sum += j * values[j]
 	}
-	checkDigit := sum % 103
-	values = append(values, checkDigit)
-
-	return values
+	return append(values, sum%103)
 }
 
 // drawBarcode128 renders a Code 128 barcode on the canvas
@@ -487,7 +509,7 @@ func (c *canvas) drawBarcode128(bc *zpl.BarcodeCode128, moduleWidth int) {
 	for i := 0; i < len(bc.Data)-1; i++ {
 		if bc.Data[i] == '>' {
 			next := bc.Data[i+1]
-			if next == ';' || next == ':' || next == '5' || next == '6' || next == '7' || next == '8' || next == '>' {
+			if strings.IndexByte("023456789:;<=", next) >= 0 {
 				hasEscapes = true
 				break
 			}

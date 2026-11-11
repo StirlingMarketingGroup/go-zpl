@@ -16,6 +16,7 @@ import (
 	xdraw "golang.org/x/image/draw"
 
 	"github.com/makiuchi-d/gozxing"
+	"github.com/makiuchi-d/gozxing/datamatrix"
 	"github.com/makiuchi-d/gozxing/oned"
 
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
@@ -361,4 +362,75 @@ func TestPDF417MatchesLabelary(t *testing.T) {
 	if diff > maxDiff {
 		t.Errorf("Pattern mismatch with Labelary exceeds %.0f%%: %.2f%%", maxDiff*100, diff*100)
 	}
+}
+
+// The barcodes on the USPS layout of November 2026 read back as their GS1 data.
+func TestUSPSBarcodesScan(t *testing.T) {
+	render := func(dir string) image.Image {
+		zplData, err := os.ReadFile(filepath.Join("..", "testdata", "visual", dir, "label.zpl"))
+		if err != nil {
+			t.Fatalf("read zpl: %v", err)
+		}
+		label, err := zpl.Parse(string(zplData))
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		img, err := New(zpl.DPI203).WithSize(812, 1218).Render(label)
+		if err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		return img
+	}
+	apo := render("usps_apo_2026_11")
+	domestic := render("usps_domestic_2026_11")
+
+	tests := []struct {
+		name   string
+		decode func(image.Image) (string, error)
+		crop   image.Image
+		want   string
+	}{
+		{"apo code 128", decodeCode128GS1, cropImage(apo, image.Rect(0, 30, 812, 170)), "]C1420096060010\x1d9405500000000000000000"},
+		{"domestic code 128", decodeCode128GS1, cropImage(domestic, image.Rect(0, 680, 812, 850)), "]C1420221240000\x1d9400100000000000000000"},
+		{"domestic data matrix", decodeDataMatrix, cropImage(domestic, image.Rect(700, 905, 812, 1010)), "\x1d420221240000\x1d9400100000000000000000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.decode(tt.crop)
+			if err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("read %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// decodeCode128GS1 reads a Code 128 the way a GS1 scanner reports it:
+// the first FNC1 as "]C1", later ones as ASCII 29.
+func decodeCode128GS1(img image.Image) (string, error) {
+	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
+	if err != nil {
+		return "", err
+	}
+	result, err := oned.NewCode128Reader().Decode(bmp, map[gozxing.DecodeHintType]interface{}{
+		gozxing.DecodeHintType_ASSUME_GS1: true,
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.GetText(), nil
+}
+
+func decodeDataMatrix(img image.Image) (string, error) {
+	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
+	if err != nil {
+		return "", err
+	}
+	result, err := datamatrix.NewDataMatrixReader().Decode(bmp, nil)
+	if err != nil {
+		return "", err
+	}
+	return result.GetText(), nil
 }

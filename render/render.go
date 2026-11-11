@@ -25,6 +25,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/image/font"
+	"golang.org/x/text/encoding/charmap"
+
 	zpl "github.com/StirlingMarketingGroup/go-zpl"
 )
 
@@ -210,9 +213,10 @@ func (r *Renderer) RenderJPEG(label *zpl.Label, w io.Writer, quality int) error 
 type canvas struct {
 	img *image.RGBA
 
-	// Current position (set by ^FO)
-	curX int
-	curY int
+	// Current position (set by ^FO or ^FT) and that field's z justification.
+	curX         int
+	curY         int
+	fieldJustify zpl.Justification
 
 	// Label home offset (set by ^LH)
 	homeX int
@@ -228,8 +232,9 @@ type canvas struct {
 	// Field state
 	fieldReverse   bool
 	fieldDirection zpl.Orientation // Default rotation for fields (^FW)
-	fieldBlock     *zpl.FieldBlock // ^FB applies to next field
+	fieldBlock     zpl.Command     // the next field's *zpl.FieldBlock or *zpl.TextBlock; the later command wins
 	useBaseline    bool            // true when position set by ^FT (baseline), false for ^FO (top-left)
+	charSet        int             // ^CI. 28 is UTF-8, the default when a label sets none.
 
 	// Barcode defaults (set by ^BY)
 	barcodeModuleWidth int
@@ -241,7 +246,7 @@ type canvas struct {
 	pendingBarcode interface{}
 }
 
-// Shared font manager (parsed once, reused across renders)
+// The parsed fonts, shared by every render.
 var (
 	sharedFontMgr     *fontManager
 	sharedFontMgrOnce sync.Once
@@ -267,13 +272,22 @@ func newCanvas(width, height int) (*canvas, error) {
 	}
 
 	return &canvas{
-		img:                img,
-		fontMgr:            fm,
+		img: img,
+		fontMgr: &fontManager{
+			font0:        fm.font0,
+			fontA:        fm.fontA,
+			fontD:        fm.fontD,
+			fontE:        fm.fontE,
+			fontCJK:      fm.fontCJK,
+			faceCache:    make(map[faceCacheKey]font.Face),
+			faceCacheCJK: make(map[faceCacheKey]font.Face),
+		},
 		currentFont:        zpl.Font0,
 		fontHeight:         30,
 		fontWidth:          0, // Zero means proportional width
 		fontOrient:         zpl.OrientationNormal,
 		fieldDirection:     zpl.OrientationNormal,
+		charSet:            28,
 		barcodeModuleWidth: 2, // Default module width
 		barcodeHeight:      100,
 	}, nil
@@ -291,11 +305,13 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		c.curX = v.X + c.homeX
 		c.curY = v.Y + c.homeY
 		c.useBaseline = false
+		c.fieldJustify = v.Justification
 
 	case *zpl.FieldTypeset:
 		c.curX = v.X + c.homeX
 		c.curY = v.Y + c.homeY
 		c.useBaseline = true
+		c.fieldJustify = v.Justification
 
 	case *zpl.ScalableFont:
 		c.currentFont = v.Font
@@ -377,11 +393,13 @@ func (c *canvas) processCommand(cmd zpl.Command) error { //nolint:unparam // Err
 		// Comments are ignored
 
 	case *zpl.FieldBlock:
-		// Applies to the next field
+		c.fieldBlock = v
+
+	case *zpl.TextBlock:
 		c.fieldBlock = v
 
 	case *zpl.CharacterSet:
-		// Character set selection - not yet implemented
+		c.charSet = v.CharSet
 	}
 
 	return nil
@@ -408,104 +426,214 @@ func (c *canvas) drawPendingBarcode(data string) {
 	c.fieldBlock = nil
 }
 
+// decodeFieldText maps field bytes to characters for the current ^CI set.
+// Sets 0–13 are code page 850, 27 is Windows-1252, and anything else
+// (including the default 28, UTF-8) is left as it is.
+func decodeFieldText(text string, charSet int) string {
+	codePage := charmap.CodePage850
+	switch {
+	case charSet >= 0 && charSet <= 13:
+	case charSet == 27:
+		codePage = charmap.Windows1252
+	default:
+		return text
+	}
+	// A single-byte code page maps every byte, so decoding cannot fail.
+	decoded, _ := codePage.NewDecoder().String(text)
+	return decoded
+}
+
 // drawText renders text at the current position using the current font settings.
 func (c *canvas) drawText(text string) {
-	if c.fontMgr == nil {
+	if c.fontMgr == nil || text == "" {
 		c.fieldReverse = false
 		c.fieldBlock = nil
 		return
 	}
-	if text == "" {
-		c.fieldReverse = false
-		c.fieldBlock = nil
-		return
-	}
+
+	text = decodeFieldText(text, c.charSet)
 
 	height := c.fontHeight
 	if height == 0 {
 		height = 30
 	}
 
-	// Determine effective orientation:
-	// - If font specifies a rotation (^A0R, etc.), use that
-	// - Otherwise, use the field direction (^FW)
+	// Font rotation (^A0R) wins. Otherwise the field direction (^FW) applies.
 	orient := c.fontOrient
 	if orient == zpl.OrientationNormal && c.fieldDirection != zpl.OrientationNormal {
 		orient = c.fieldDirection
 	}
 
-	x := c.curX
-	y := c.curY
-
-	// Multi-line ^FB support: \& hard breaks + word wrap when MaxLines > 1 or \& present.
-	// MaxLines == 1 with no \& keeps the historic single-line (may overflow) behavior.
-	if c.fieldBlock != nil && c.fieldBlock.Width > 0 && orient == zpl.OrientationNormal {
-		hasHardBreaks := strings.Contains(text, `\&`)
-		maxLines := c.fieldBlock.MaxLines
-		if maxLines < 1 {
-			maxLines = 1
-		}
-
-		if maxLines > 1 || hasHardBreaks {
-			lines := c.layoutFieldBlockLines(text, height)
-			if maxLines > 0 && len(lines) > maxLines {
-				lines = lines[:maxLines]
-			}
-			lineSpacing := c.fieldBlock.LineSpacing
-			for i, line := range lines {
-				lx := x
-				if line != "" {
-					textWidth := c.fontMgr.measureTextWidth(line, c.currentFont, height, c.fontWidth)
-					if textWidth > 0 {
-						switch c.fieldBlock.Justification {
-						case zpl.JustifyRight:
-							lx += c.fieldBlock.Width - textWidth
-						case zpl.JustifyCenter:
-							lx += (c.fieldBlock.Width - textWidth) / 2
-							// JustifyLeft and JustifyJustified (J) treated as left
-						}
-					}
-				}
-				ly := y + i*(height+lineSpacing)
-				c.fontMgr.drawText(c.img, line, lx, ly, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, c.useBaseline)
-			}
-
-			c.fieldReverse = false
-			c.fieldBlock = nil
+	switch block := c.fieldBlock.(type) {
+	case *zpl.FieldBlock:
+		if block.Width > 0 {
+			c.drawFieldBlock(text, block, orient, height)
 			return
 		}
+	case *zpl.TextBlock:
+		c.drawTextBlock(text, block, orient, height)
+		return
+	}
 
-		// Single-line ^FB: justify only, may overflow (historic behavior)
-		textWidth := c.fontMgr.measureTextWidth(text, c.currentFont, height, c.fontWidth)
-		if textWidth > 0 {
-			switch c.fieldBlock.Justification {
-			case zpl.JustifyRight:
-				x += c.fieldBlock.Width - textWidth
-			case zpl.JustifyCenter:
-				x += (c.fieldBlock.Width - textWidth) / 2
+	x := c.curX
+	y := c.curY
+	// z = 1 right-justifies a text field that has no block. A block ignores z.
+	if c.fieldJustify == zpl.JustifyRight {
+		tw := c.fontMgr.measureTextWidth(text, c.currentFont, height, c.fontWidth)
+		switch orient {
+		case zpl.OrientationRotated90:
+			if c.useBaseline {
+				y -= tw
+			} else {
+				x -= height
 			}
+		case zpl.OrientationRotated180:
+			if c.useBaseline {
+				x += tw
+			} else {
+				x -= tw
+			}
+		case zpl.OrientationRotated270:
+			if c.useBaseline {
+				y += tw
+			} else {
+				x -= height
+			}
+		default:
+			x -= tw
 		}
 	}
 
-	// Pass fontWidth directly - 0 means proportional (natural font width)
 	c.fontMgr.drawText(c.img, text, x, y, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, c.useBaseline)
-
-	// Reset field reverse after drawing
 	c.fieldReverse = false
-	// ^FB applies to a single field, clear after drawing text
+	c.fieldBlock = nil
+}
+
+// drawFieldBlock lays out a ^FB once, then maps each line into the field orientation.
+// ^FT anchors the baseline of the last possible line (maxLines-1), not line 0.
+func (c *canvas) drawFieldBlock(text string, block *zpl.FieldBlock, orient zpl.Orientation, height int) {
+	maxLines := max(1, block.MaxLines)
+	lines := c.layoutFieldBlockLines(text, block.Width, height)
+
+	pitch := height + block.LineSpacing
+	x := c.curX
+	y := c.curY
+	for i, line := range lines {
+		tw := 0
+		if line != "" {
+			tw = c.fontMgr.measureTextWidth(line, c.currentFont, height, c.fontWidth)
+		}
+		u := 0
+		switch block.Justification {
+		case zpl.JustifyRight:
+			u = block.Width - tw
+		case zpl.JustifyCenter:
+			u = (block.Width - tw) / 2
+		}
+		// A Zebra prints every line past the last one on top of it.
+		i = min(i, maxLines-1)
+		back := maxLines - 1 - i
+		var lx, ly int
+		switch orient {
+		case zpl.OrientationRotated90:
+			lx = x + back*pitch
+			ly = y + u
+		case zpl.OrientationRotated180:
+			ly = y + back*pitch
+			if c.useBaseline {
+				lx = x - u
+			} else {
+				lx = x + block.Width - u - tw
+			}
+		case zpl.OrientationRotated270:
+			if c.useBaseline {
+				lx = x - back*pitch
+				ly = y - u
+			} else {
+				lx = x + i*pitch
+				ly = y + block.Width - u - tw
+			}
+		default:
+			lx = x + u
+			if c.useBaseline {
+				ly = y - back*pitch
+			} else {
+				ly = y + i*pitch
+			}
+		}
+		c.fontMgr.drawText(c.img, line, lx, ly, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, c.useBaseline)
+	}
+
+	c.fieldReverse = false
+	c.fieldBlock = nil
+}
+
+// drawTextBlock lays out a ^TB the way a Zebra ZP 450 prints it: lines sit
+// one font height apart, \& is literal text, and whatever passes the block's
+// edge is cut off.
+func (c *canvas) drawTextBlock(text string, block *zpl.TextBlock, orient zpl.Orientation, height int) {
+	if block.Orientation != 0 {
+		orient = block.Orientation
+	}
+
+	// The block as it sits on the label. ^FO gives its top-left corner;
+	// ^FT gives the corner where the last line would start.
+	area := image.Rect(0, 0, block.Width, block.Height)
+	switch orient {
+	case zpl.OrientationRotated90:
+		area = image.Rect(0, 0, block.Height, block.Width)
+	case zpl.OrientationRotated180:
+		if c.useBaseline {
+			area = area.Sub(image.Pt(block.Width, 0))
+		}
+	case zpl.OrientationRotated270:
+		area = image.Rect(0, 0, block.Height, block.Width)
+		if c.useBaseline {
+			area = area.Sub(image.Pt(block.Height, block.Width))
+		}
+	default:
+		if c.useBaseline {
+			area = area.Sub(image.Pt(0, block.Height))
+		}
+		// An upright block prints a tenth of the font height below its origin.
+		area = area.Add(image.Pt(0, height/10))
+	}
+	area = area.Add(image.Pt(c.curX, c.curY))
+	clipped := c.img.SubImage(area).(*image.RGBA)
+
+	for i, line := range c.wrapFieldBlockSegment(text, block.Width, height) {
+		down := i * height
+		if down >= block.Height {
+			break
+		}
+		tw := c.fontMgr.measureTextWidth(line, c.currentFont, height, c.fontWidth)
+		var lx, ly int
+		switch orient {
+		case zpl.OrientationRotated90:
+			lx, ly = area.Max.X-height-down, area.Min.Y
+		case zpl.OrientationRotated180:
+			lx, ly = area.Max.X-tw, area.Max.Y-height-down
+		case zpl.OrientationRotated270:
+			lx, ly = area.Min.X+down, area.Max.Y-tw
+		default:
+			lx, ly = area.Min.X, area.Min.Y+down
+		}
+		c.fontMgr.drawText(clipped, line, lx, ly, c.currentFont, height, c.fontWidth, orient, c.fieldReverse, false)
+	}
+
+	c.fieldReverse = false
 	c.fieldBlock = nil
 }
 
 // layoutFieldBlockLines splits text on ZPL \& hard breaks and word-wraps each
-// segment to the current field block width.
-func (c *canvas) layoutFieldBlockLines(text string, fontHeight int) []string {
+// segment to the field block width.
+func (c *canvas) layoutFieldBlockLines(text string, width, fontHeight int) []string {
 	// Split on literal \&; a trailing \& yields no trailing empty line.
 	segments := strings.Split(text, `\&`)
 	if len(segments) > 0 && segments[len(segments)-1] == "" {
 		segments = segments[:len(segments)-1]
 	}
 
-	width := c.fieldBlock.Width
 	lines := make([]string, 0, len(segments))
 	for _, seg := range segments {
 		wrapped := c.wrapFieldBlockSegment(seg, width, fontHeight)
@@ -611,30 +739,12 @@ func breakWordToWidth(word string, maxWidth int, measure func(string) int) []str
 func (c *canvas) drawBox(box *zpl.GraphicBox) {
 	x := c.curX
 	y := c.curY
-	w := box.Width
-	h := box.Height
+	// A box is never narrower or shorter than its border: ^GB812,1,8 is a
+	// line 8 dots thick, and a width or height of 0 is a line of the border's thickness.
 	t := box.Thickness
+	w := max(box.Width, t)
+	h := max(box.Height, t)
 	isWhite := box.Color == zpl.LineColorWhite
-
-	// Per ZPL spec: when width is 0, draw a vertical line using thickness as width
-	if w == 0 {
-		for dy := 0; dy < h; dy++ {
-			for dx := 0; dx < t; dx++ {
-				c.setPixel(x+dx, y+dy, isWhite)
-			}
-		}
-		return
-	}
-
-	// Per ZPL spec: when height is 0, draw a horizontal line using thickness as height
-	if h == 0 {
-		for dy := 0; dy < t; dy++ {
-			for dx := 0; dx < w; dx++ {
-				c.setPixel(x+dx, y+dy, isWhite)
-			}
-		}
-		return
-	}
 
 	// For filled boxes (thickness >= min dimension / 2)
 	if t >= w/2 || t >= h/2 {
